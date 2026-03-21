@@ -1,14 +1,13 @@
 /* LinguaLens Overlay Styles
-   Injected via adoptedStyleSheets to avoid conflicts with YouTube CSS
-   Uses BEM naming convention: ll-block__element--modifier */
+   Injected as a content_scripts CSS to avoid conflicts with YouTube CSS.
+   Uses BEM naming convention: ll-block__element--modifier
+   All selectors scoped under .ll- prefix to avoid collisions. */
 
-/* TODO: Implement styles as each phase adds DOM elements */
-
-/* --- Base Container --- */
+/* ─── Base Container ─────────────────────────────────────────────────── */
 
 .ll-overlay {
   position: absolute;
-  bottom: 80px;
+  bottom: 70px;
   left: 0;
   right: 0;
   z-index: 9999;
@@ -17,8 +16,90 @@
   flex-direction: column;
   align-items: center;
   font-family: 'YouTube Noto', Roboto, Arial, sans-serif;
+  transition: bottom 0.2s ease;
 }
 
+/* When controls are hidden (ytp-autohide), captions sit near the bottom */
+#movie_player.ytp-autohide .ll-overlay {
+  bottom: 70px;
+}
+
+/* When controls are visible, shift up to match YouTube's caption shift */
+#movie_player:not(.ytp-autohide) .ll-overlay {
+  bottom: 120px;
+}
+
+/* Allow child elements to receive pointer events */
 .ll-overlay * {
   pointer-events: auto;
+}
+
+/* ─── Subtitle Area ──────────────────────────────────────────────────── */
+
+.ll-subtitle-area {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  max-width: 80%;
+  padding: 8px 16px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.75);
+}
+
+/* Hide the subtitle area when all rows are empty */
+.ll-subtitle-area:not(:has(.ll-subtitle-row--visible)) {
+  display: none;
+}
+
+/* ─── Subtitle Rows ──────────────────────────────────────────────────── */
+
+.ll-subtitle-row {
+  text-align: center;
+  line-height: 1.4;
+  word-wrap: break-word;
+  max-width: 100%;
+  padding: 2px 4px;
+  border-radius: 3px;
+  user-select: text;
+  cursor: default;
+}
+
+/* Original (target language) — bold white */
+.ll-subtitle-row--original {
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 700;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+/* Native translation — lighter, slightly smaller */
+.ll-subtitle-row--native {
+  color: #b0d4f1;
+  font-size: 15px;
+  font-weight: 400;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+/* Phonetic / romanisation — italic, muted */
+.ll-subtitle-row--phonetic {
+  color: #a0d8a0;
+  font-size: 14px;
+  font-weight: 400;
+  font-style: italic;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+
+/* ─── Push YouTube's Native Captions Down (LinguaLens sits above) ────── */
+/* YouTube captions stay visible; our overlay is positioned above them */
+
+/* ─── Reduced Motion ─────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .ll-overlay,
+  .ll-subtitle-row {
+    transition: none;
+  }
 }

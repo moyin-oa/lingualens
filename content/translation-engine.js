@@ -5,16 +5,24 @@
 
 // TODO: Implement in Phase 2
 
-export class TranslationEngine {
-  constructor() {
-    this._cache = new Map();
+(function () {
+  'use strict';
+
+  class TranslationEngine {
+    constructor() {
+      this._cache = new Map();
+    }
+
+    async translate(text, sourceLang, nativeLang, phoneticEnabled) {
+      // TODO: Phase 2
+      return { translation: null, romanisation: null };
+    }
+
+    clearCache() {
+      this._cache.clear();
+    }
   }
 
-  async translate(text, sourceLang, nativeLang, phoneticEnabled) {
-    // TODO: Phase 2
-  }
-
-  clearCache() {
-    this._cache.clear();
-  }
-}
+  window.LinguaLens = window.LinguaLens || {};
+  window.LinguaLens.TranslationEngine = TranslationEngine;
+})();

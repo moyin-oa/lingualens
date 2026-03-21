@@ -3,16 +3,23 @@
 
 // TODO: Implement in Phase 5
 
-export class WordLookup {
-  constructor() {
-    this._popup = null;
+(function () {
+  'use strict';
+
+  class WordLookup {
+    constructor() {
+      this._popup = null;
+    }
+
+    init() {
+      // TODO: Phase 5
+    }
+
+    destroy() {
+      // TODO: Phase 5
+    }
   }
 
-  init() {
-    // TODO: Phase 5
-  }
-
-  destroy() {
-    // TODO: Phase 5
-  }
-}
+  window.LinguaLens = window.LinguaLens || {};
+  window.LinguaLens.WordLookup = WordLookup;
+})();

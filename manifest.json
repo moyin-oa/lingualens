@@ -8,9 +8,6 @@
     "storage",
     "scripting"
   ],
-  "optional_permissions": [
-    "microphone"
-  ],
   "background": {
     "service_worker": "background/worker.js",
     "type": "module"
@@ -19,9 +16,18 @@
     {
       "matches": ["*://*.youtube.com/*"],
       "js": [
+        "content/subtitle-engine.js",
+        "content/overlay.js",
+        "content/translation-engine.js",
+        "content/subtitle-nav.js",
+        "content/quiz-engine.js",
+        "content/word-lookup.js",
+        "content/heatmap-engine.js",
         "content/index.js"
       ],
-      "css": [],
+      "css": [
+        "content/overlay.css"
+      ],
       "run_at": "document_idle"
     }
   ],
