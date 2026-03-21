@@ -1,0 +1,24 @@
+/* LinguaLens Overlay Styles
+   Injected via adoptedStyleSheets to avoid conflicts with YouTube CSS
+   Uses BEM naming convention: ll-block__element--modifier */
+
+/* TODO: Implement styles as each phase adds DOM elements */
+
+/* --- Base Container --- */
+
+.ll-overlay {
+  position: absolute;
+  bottom: 80px;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: 'YouTube Noto', Roboto, Arial, sans-serif;
+}
+
+.ll-overlay * {
+  pointer-events: auto;
+}

@@ -37,3 +37,8 @@ logs/
 # ─── Supabase local dev ──────────────────────────────────────────────────────
 .supabase/
 supabase/.temp/
+
+# docs
+plan.md
+LinguaLens_System_Design_v1.3.docx
+.claude
