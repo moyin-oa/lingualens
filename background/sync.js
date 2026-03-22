@@ -638,10 +638,15 @@ function markQueueItemForRetry(queue, queueId, { retryCount, retryAfter }) {
 }
 
 function prepareRecordForSync(table, payload, userSub) {
-  const record = payload && typeof payload === 'object'
+  const rawRecord = payload && typeof payload === 'object'
     ? structuredClone(payload)
     : null;
 
+  if (!rawRecord) {
+    return null;
+  }
+
+  const record = sanitizeRecordForSync(table, rawRecord);
   if (!record) {
     return null;
   }
@@ -713,4 +718,71 @@ function sanitizeSettingsSnapshot(settings) {
 function getRetryDelayMs(retryCount) {
   const safeRetryCount = Math.max(1, Number(retryCount || 1));
   return Math.min(INITIAL_RETRY_DELAY_MS * (2 ** (safeRetryCount - 1)), MAX_RETRY_DELAY_MS);
+}
+
+function sanitizeRecordForSync(table, record) {
+  switch (table) {
+    case 'quiz_results':
+      return pickFields(record, [
+        'id',
+        'question',
+        'quoted_term',
+        'options',
+        'correct_index',
+        'selected_index',
+        'correct',
+        'explanation',
+        'target_word',
+        'difficulty',
+        'context_lines',
+        'video_url',
+        'video_title',
+        'subtitle_timestamp',
+        'answered_at',
+      ]);
+    case 'vocab_entries':
+      return pickFields(record, [
+        'id',
+        'word',
+        'lemma',
+        'language',
+        'source_lang',
+        'native_lang',
+        'part_of_speech',
+        'gender',
+        'definition',
+        'translations',
+        'usage_note',
+        'example_sentence',
+        'context_sentence',
+        'clicked_sentence',
+        'translation_text',
+        'video_url',
+        'video_title',
+        'timestamp',
+        'saved_at',
+        'updated_at',
+        'starred',
+      ]);
+    case 'user_settings':
+      return {
+        user_id: String(record.user_id || '').trim(),
+        settings: sanitizeSettingsSnapshot(record.settings),
+        updated_at: String(record.updated_at || new Date().toISOString()).trim(),
+      };
+    default:
+      return record;
+  }
+}
+
+function pickFields(record, fields) {
+  const nextRecord = {};
+
+  fields.forEach((field) => {
+    if (Object.prototype.hasOwnProperty.call(record, field)) {
+      nextRecord[field] = record[field];
+    }
+  });
+
+  return nextRecord;
 }

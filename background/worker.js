@@ -11,8 +11,9 @@ import { getLanguageName } from '../data/languages.js';
 const QUIZ_RESPONSE_SCHEMA = {
   type: 'OBJECT',
   properties: {
+    question_type: { type: 'STRING' },
     question: { type: 'STRING' },
-    quoted_term: { type: 'STRING' },
+    source_phrase: { type: 'STRING' },
     options: {
       type: 'ARRAY',
       items: { type: 'STRING' },
@@ -23,7 +24,7 @@ const QUIZ_RESPONSE_SCHEMA = {
     explanation: { type: 'STRING' },
     target_word: { type: 'STRING' },
   },
-  required: ['question', 'quoted_term', 'options', 'correct_index', 'explanation', 'target_word'],
+  required: ['question_type', 'question', 'source_phrase', 'options', 'correct_index', 'explanation', 'target_word'],
 };
 
 const WORD_LOOKUP_RESPONSE_SCHEMA = {
@@ -112,23 +113,23 @@ const WORD_GLOSS_PREFETCH_RESPONSE_SCHEMA = {
 
 const QUIZ_INSTRUCTIONS = {
   beginner: [
-    'You create short comprehension quizzes for language learners.',
+    'You create short language-learning quizzes from subtitles.',
     'Target beginner learners.',
-    'Use simple wording in the learner native language.',
-    'Prefer direct meaning or basic context questions.',
+    'Prefer questions about direct meaning, simple paraphrase, clear reference, or obvious speaker intent.',
+    'Stay close to the actual words spoken.',
     'Make exactly one option clearly correct.',
   ].join(' '),
   intermediate: [
-    'You create comprehension quizzes for language learners.',
+    'You create language-learning quizzes from subtitles.',
     'Target intermediate learners.',
-    'Mix meaning, implication, and context clues.',
-    'Use clear but not overly simplified wording.',
+    'Prefer questions about what a line means here, what a phrase refers to, what someone really means, or which paraphrase best matches the dialogue.',
+    'Use context clues, but keep the focus on understanding the language in the subtitle window.',
     'Make exactly one option clearly correct.',
   ].join(' '),
   advanced: [
-    'You create nuanced comprehension quizzes for language learners.',
+    'You create nuanced language-learning quizzes from subtitles.',
     'Target advanced learners.',
-    'Use subtle context, inference, or phrasing distinctions.',
+    'Use subtle phrasing, implied meaning, and context-dependent interpretation, but keep the focus on language understanding rather than story analysis.',
     'Keep distractors plausible but still definitively wrong.',
     'Make exactly one option clearly correct.',
   ].join(' '),
@@ -372,9 +373,11 @@ async function callGemini(systemInstruction, userContent, responseSchema, timeou
 async function handleQuizGeneration(payload) {
   const {
     contextLines = [],
+    quizFrequency = 10,
     difficulty = 'intermediate',
     nativeLang = 'en',
     sourceLang = 'auto',
+    translationLang = 'en',
     videoTitle = '',
     videoUrl = '',
   } = payload || {};
@@ -385,13 +388,17 @@ async function handleQuizGeneration(payload) {
 
   const nativeLanguageName = describeLanguage(nativeLang);
   const subtitleLanguageName = describeLanguage(sourceLang);
+  const translationLanguageName = describeLanguage(translationLang);
   const quizInstruction = QUIZ_INSTRUCTIONS[difficulty] || QUIZ_INSTRUCTIONS.intermediate;
   const userContent = JSON.stringify({
-    task: 'Generate a multiple-choice language-learning quiz from recent subtitle context.',
+    task: 'Generate a natural multiple-choice quiz from the latest subtitle window.',
     learner_native_language: nativeLang,
     learner_native_language_name: nativeLanguageName,
     subtitle_language: sourceLang,
     subtitle_language_name: subtitleLanguageName,
+    translation_language: translationLang,
+    translation_language_name: translationLanguageName,
+    subtitle_window_size: Number(quizFrequency || contextLines.length || 0),
     video_title: videoTitle,
     video_url: videoUrl,
     context_lines: contextLines.map((line) => ({
@@ -401,20 +408,39 @@ async function handleQuizGeneration(payload) {
     })),
     requirements: [
       'Return valid JSON only.',
+      `Read the last ${Number(quizFrequency || contextLines.length || 0)} subtitle lines as one short scene.`,
+      'Use both text and translated_text to understand who is speaking, what they are doing, and what just happened.',
+      `question_type must be one of: paraphrase, reference, intent, response, situation.`,
       `Write the question, all 4 options, and the explanation in ${subtitleLanguageName}.`,
-      'Keep the entire quiz in the subtitle/source language, not the learner translation language.',
-      'Each context line may include translated_text in the learner translation language.',
-      `Set quoted_term to the learner translation-language word or short phrase you want the question to quote, using translated_text when available.`,
-      `The question field should ask about quoted_term in ${subtitleLanguageName} and should not quote the original subtitle token instead.`,
-      `When the question quotes or highlights the meaning being tested, quote a word or phrase from translated_text in ${nativeLanguageName}, not the original ${subtitleLanguageName} subtitle token.`,
-      `Use translated_text to anchor the tested meaning whenever it is available.`,
-      'Options must be entirely in the subtitle/source language only.',
-      'Do not include parentheses, inline translations, glosses, or bilingual answer options.',
-      'Do not include English words in parentheses inside options unless English is the subtitle/source language itself.',
+      `source_phrase must be one short exact phrase copied from translated_text in ${translationLanguageName}, not from the original subtitle text.`,
+      'The question should directly ask about source_phrase or the translated phrase containing it.',
+      'The question must include source_phrase verbatim.',
+      'Do not include the original subtitle text verbatim inside the question unless necessary for natural wording.',
+      'The question should be in the learner/source-side language and quote the target/content-language phrase.',
+      'It is okay to ask "What does [source_phrase] mean here?" or "What does the speaker mean by [source_phrase]?" when that is the most useful language-learning question.',
+      'The question should sound like something you would casually ask a friend, not like film analysis, literature class, psychology, or a worksheet.',
+      'This is a language-learning quiz, so prefer understanding the dialogue itself over interpreting the movie.',
+      'Good question angles include: which paraphrase best matches what was said, what the quoted target phrase means here, who or what someone is referring to, what someone means by a line, why a speaker uses an expression, or what reaction fits.',
+      'Ask about any moment from the provided subtitle window, but stay close to one moment or one utterance rather than synthesizing distant lines into a broad interpretation.',
+      'Do not ask about themes, symbolism, character arcs, moral lessons, personality traits, or what the scene implies in a broad analytical sense.',
+      'Do not ask questions like "what does this imply about X generally?" or "what does this reveal about the character?"',
+      'The learner should be rewarded for understanding the language and immediate context, not for doing movie analysis.',
+      `Write all answer options in ${subtitleLanguageName}.`,
+      'Make the options feel like natural paraphrases, likely references, or plausible interpretations of the dialogue in the question language, not analytical statements about the scene.',
+      'Do not include explanations, glosses, translations, or parentheses inside the answer options.',
+      'Do not make the correct option obviously longer, more specific, or more natural than the distractors.',
+      'Do not repeat source_phrase verbatim inside every option.',
       'Use exactly 4 options.',
       'Set correct_index to a zero-based index.',
       'Set target_word to one important source-language word or short phrase from the subtitle context.',
+      `Write explanation in ${subtitleLanguageName} and keep it short and grounded in the dialogue.`,
       'Base the answer only on the provided context.',
+      'Model the style on questions like these:',
+      'Example 1: source_phrase = "Je t\'aime" -> question = "What did Ben mean by \\"Je t\'aime\\"?"',
+      'Example 1 options = ["He loves her.", "He admires her style.", "He is apologizing.", "He wants to leave."]',
+      'Example 2: source_phrase = "Ca me donne envie de me perdre" -> question = "What does the singer mean by \\"Ca me donne envie de me perdre\\"?"',
+      'Example 2 options = ["It makes them want to give themselves over completely.", "It makes them want to run away in panic.", "It makes them forget the route home.", "It makes them hide from everyone."]',
+      'The examples above are the target style: question in the learner/source-side language, quoted target/content-language phrase, answer options in the question language.',
     ],
   });
 
@@ -709,21 +735,22 @@ async function handleAuthGetSession() {
   return authManager.getSessionState();
 }
 
-function sanitizeQuiz(data, sourceLang = 'auto') {
+function sanitizeQuiz(data, questionLang = 'en') {
   if (!data || typeof data !== 'object') {
     return null;
   }
 
-  const question = String(data.question || '').trim();
-  const quotedTerm = sanitizeQuotedTerm(data.quoted_term);
-  const explanation = String(data.explanation || '').trim();
+  const questionType = sanitizeQuestionType(data.question_type);
+  const question = sanitizeQuizQuestion(data.question);
+  const sourcePhrase = sanitizeQuotedTerm(data.source_phrase);
+  const explanation = stripInlineGloss(String(data.explanation || '').trim());
   const targetWord = String(data.target_word || '').trim();
   const options = Array.isArray(data.options)
     ? data.options.map((option) => sanitizeQuizOption(option)).filter(Boolean).slice(0, 4)
     : [];
   const correctIndex = Number(data.correct_index);
 
-  if (!question || !quotedTerm || !explanation || !targetWord || options.length !== 4) {
+  if (!questionType || !question || !sourcePhrase || !explanation || !targetWord || options.length !== 4) {
     return null;
   }
 
@@ -731,12 +758,17 @@ function sanitizeQuiz(data, sourceLang = 'auto') {
     return null;
   }
 
-  const rebuiltQuestion = buildQuizQuestion(question, quotedTerm, sourceLang);
-  const cleanedExplanation = buildQuizExplanation(sourceLang, quotedTerm, options[correctIndex]);
+  const rebuiltQuestion = buildQuizQuestion(question, sourcePhrase, questionLang);
+  if (!rebuiltQuestion || isAnalyticalQuizQuestion(rebuiltQuestion)) {
+    return null;
+  }
+
+  const cleanedExplanation = buildQuizExplanation(explanation, sourcePhrase, options[correctIndex]);
 
   return {
+    question_type: questionType,
     question: rebuiltQuestion,
-    quoted_term: quotedTerm,
+    source_phrase: sourcePhrase,
     options,
     correct_index: correctIndex,
     explanation: cleanedExplanation,
@@ -786,6 +818,19 @@ function sanitizeQuizOption(option) {
   return stripInlineGloss(String(option || '').trim());
 }
 
+function sanitizeQuestionType(value) {
+  const cleanValue = String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
+  const allowedTypes = new Set(['paraphrase', 'reference', 'intent', 'response', 'situation']);
+  return allowedTypes.has(cleanValue) ? cleanValue : '';
+}
+
+function sanitizeQuizQuestion(value) {
+  return stripInlineGloss(String(value || '').trim())
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([?!:;,.])/g, '$1')
+    .trim();
+}
+
 function sanitizeQuotedTerm(value) {
   let text = stripInlineGloss(String(value || '').trim())
     .replace(/^["“«]\s*/, '')
@@ -826,50 +871,172 @@ function stripInlineGloss(text) {
     .trim();
 }
 
-function buildQuizQuestion(question, quotedTerm, sourceLang = 'auto') {
-  const cleanQuotedTerm = String(quotedTerm || '').trim();
-  let rebuiltQuestion = stripInlineGloss(question);
-
-  if (!cleanQuotedTerm) {
-    return rebuiltQuestion;
-  }
-
-  const templatedQuestion = getQuizQuestionTemplate(sourceLang, cleanQuotedTerm);
-  if (templatedQuestion) {
-    return templatedQuestion;
-  }
-
-  rebuiltQuestion = rebuiltQuestion
-    .replace(QUOTED_PHRASE_PATTERN, ' ')
-    .replace(SINGLE_QUOTED_PHRASE_PATTERN, ' ')
-    .replace(new RegExp(escapeRegExp(cleanQuotedTerm), 'gi'), ' ')
+function buildQuizQuestion(question, sourcePhrase, questionLang = 'en') {
+  const cleanQuestion = stripInlineGloss(question)
     .replace(/\s{2,}/g, ' ')
     .replace(/\s+([?!:;,.])/g, '$1')
     .trim();
+  const cleanSourcePhrase = String(sourcePhrase || '').trim();
 
-  rebuiltQuestion = rebuiltQuestion.replace(/\?+$/, '').trim();
+  if (!cleanQuestion) {
+    return '';
+  }
 
-  return `${rebuiltQuestion || stripInlineGloss(question).replace(/\?+$/, '').trim()} "${cleanQuotedTerm}" ?`
+  if (cleanSourcePhrase && cleanQuestion.includes(cleanSourcePhrase)) {
+    return ensureQuestionMark(cleanQuestion, questionLang);
+  }
+
+  const language = normalizeLanguageCode(questionLang);
+  const templated = getSourcePhraseQuestionTemplate(language, cleanSourcePhrase);
+  if (templated) {
+    return templated;
+  }
+
+  return ensureQuestionMark(`${cleanQuestion} "${cleanSourcePhrase}"`, questionLang);
+}
+
+function extractPrimarySourcePhrase(question, quotedTerm) {
+  const cleanQuestion = String(question || '').trim();
+  const cleanQuotedTerm = String(quotedTerm || '').trim().toLowerCase();
+  const phrases = [];
+
+  let match = null;
+  QUOTED_PHRASE_PATTERN.lastIndex = 0;
+  while ((match = QUOTED_PHRASE_PATTERN.exec(cleanQuestion))) {
+    const phrase = String(match[1] || match[2] || match[3] || '').trim();
+    if (phrase) {
+      phrases.push(phrase);
+    }
+  }
+
+  SINGLE_QUOTED_PHRASE_PATTERN.lastIndex = 0;
+  while ((match = SINGLE_QUOTED_PHRASE_PATTERN.exec(cleanQuestion))) {
+    const phrase = String(match[2] || '').trim();
+    if (phrase) {
+      phrases.push(phrase);
+    }
+  }
+
+  return phrases.find((phrase) => phrase.toLowerCase() !== cleanQuotedTerm) || '';
+}
+
+function stripQuotedTermReferences(question, quotedTerm) {
+  const cleanQuestion = String(question || '').trim();
+  const cleanQuotedTerm = String(quotedTerm || '').trim();
+  if (!cleanQuotedTerm) {
+    return cleanQuestion;
+  }
+
+  return cleanQuestion
+    .replace(new RegExp(`\\bwhat do they mean by\\s*[\"“«]?\\s*${escapeRegExp(cleanQuotedTerm)}\\s*[\"”»]?`, 'i'), 'what do they mean')
+    .replace(new RegExp(`\\bwhat does\\s*[\"“«]?\\s*${escapeRegExp(cleanQuotedTerm)}\\s*[\"”»]?\\s*mean`, 'i'), 'what does this mean')
+    .replace(new RegExp(`[\"“«]?\\s*${escapeRegExp(cleanQuotedTerm)}\\s*[\"”»]?`, 'gi'), '')
     .replace(/\s{2,}/g, ' ')
-    .replace(/\s+\?/g, ' ?')
+    .replace(/\s+([?!:;,.])/g, '$1')
     .trim();
 }
 
-function buildQuizExplanation(sourceLang, quotedTerm, correctOption, fallbackText = '') {
-  const cleanText = String(fallbackText || '').trim();
+function getAnchoredQuizQuestionTemplate(sourceLang, sourcePhrase, quotedTerm) {
+  const language = normalizeLanguageCode(sourceLang);
+  const cleanSourcePhrase = String(sourcePhrase || '').trim();
+  const cleanQuotedTerm = String(quotedTerm || '').trim();
+
+  if (!cleanSourcePhrase || !cleanQuotedTerm) {
+    return '';
+  }
+
+  switch (language) {
+    case 'fr':
+      return `Quand quelqu'un dit "${cleanSourcePhrase}" ici, qu'est-ce qu'il ou elle veut dire ? (« ${cleanQuotedTerm} »)`;
+    case 'es':
+      return `Cuando alguien dice "${cleanSourcePhrase}" aqui, ¿que quiere decir? (« ${cleanQuotedTerm} »)`;
+    case 'pt':
+      return `Quando alguem diz "${cleanSourcePhrase}" aqui, o que quer dizer? (« ${cleanQuotedTerm} »)`;
+    case 'it':
+      return `Quando qualcuno dice "${cleanSourcePhrase}" qui, che cosa vuole dire? (« ${cleanQuotedTerm} »)`;
+    case 'de':
+      return `Wenn jemand hier "${cleanSourcePhrase}" sagt, was ist damit gemeint? (« ${cleanQuotedTerm} »)`;
+    case 'en':
+      return `When someone says "${cleanSourcePhrase}" here, what do they mean? (« ${cleanQuotedTerm} »)`;
+    default:
+      return '';
+  }
+}
+
+function buildQuizExplanation(fallbackText = '', quotedTerm, correctOption) {
+  const cleanText = stripInlineGloss(String(fallbackText || '').trim());
   const cleanQuotedTerm = String(quotedTerm || '').trim();
   const cleanCorrectOption = stripInlineGloss(String(correctOption || '').trim());
+
+  if (cleanText) {
+    return cleanText;
+  }
 
   if (!cleanQuotedTerm || !cleanCorrectOption) {
     return cleanText;
   }
 
-  const baseExplanation = getQuizExplanationTemplate(sourceLang, cleanQuotedTerm, cleanCorrectOption);
-  if (baseExplanation) {
-    return baseExplanation;
+  return `"${cleanQuotedTerm}" means "${cleanCorrectOption}".`;
+}
+
+function ensureQuestionMark(text, sourceLang = 'auto') {
+  const cleanText = String(text || '').trim().replace(/\?+$/, '').trim();
+  if (!cleanText) {
+    return '';
   }
 
-  return `"${cleanQuotedTerm}" means "${cleanCorrectOption}".`;
+  if (normalizeLanguageCode(sourceLang) === 'es' && !cleanText.startsWith('¿')) {
+    return `¿${cleanText}?`;
+  }
+
+  return `${cleanText}?`;
+}
+
+function getSourcePhraseQuestionTemplate(language, sourcePhrase) {
+  const cleanSourcePhrase = String(sourcePhrase || '').trim();
+  if (!cleanSourcePhrase) {
+    return '';
+  }
+
+  switch (language) {
+    case 'fr':
+      return `Que veut dire "${cleanSourcePhrase}" ici ?`;
+    case 'es':
+      return `¿Que quiere decir "${cleanSourcePhrase}" aqui?`;
+    case 'pt':
+      return `O que "${cleanSourcePhrase}" quer dizer aqui?`;
+    case 'it':
+      return `Che cosa vuol dire "${cleanSourcePhrase}" qui?`;
+    case 'de':
+      return `Was bedeutet "${cleanSourcePhrase}" hier?`;
+    case 'en':
+    default:
+      return `What does "${cleanSourcePhrase}" mean here?`;
+  }
+}
+
+function isAnalyticalQuizQuestion(question) {
+  const cleanQuestion = String(question || '').trim().toLowerCase();
+  if (!cleanQuestion) {
+    return true;
+  }
+
+  const bannedFragments = [
+    'imply about',
+    'reveal about',
+    'theme',
+    'symbol',
+    'symbolism',
+    'character arc',
+    'moral lesson',
+    'what does this reveal',
+    'what does this imply',
+    'typical approach',
+    'personality',
+    'generally',
+  ];
+
+  return bannedFragments.some((fragment) => cleanQuestion.includes(fragment));
 }
 
 function escapeRegExp(value) {

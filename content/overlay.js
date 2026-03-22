@@ -27,6 +27,7 @@
       this._settingsFrame = null;
       this._quizPanel = null;
       this._quizQuestion = null;
+      this._quizSupportQuote = null;
       this._quizOptions = null;
       this._quizFeedback = null;
       this._quizFeedbackTitle = null;
@@ -158,6 +159,10 @@
       this._quizQuestion = document.createElement('div');
       this._quizQuestion.className = 'll-quiz-question';
 
+      this._quizSupportQuote = document.createElement('div');
+      this._quizSupportQuote.className = 'll-quiz-support-quote';
+      this._quizSupportQuote.hidden = true;
+
       this._quizOptions = document.createElement('div');
       this._quizOptions.className = 'll-quiz-options';
 
@@ -199,6 +204,7 @@
 
       this._quizPanel.appendChild(quizBadge);
       this._quizPanel.appendChild(this._quizQuestion);
+      this._quizPanel.appendChild(this._quizSupportQuote);
       this._quizPanel.appendChild(this._quizOptions);
       this._quizPanel.appendChild(this._quizFeedback);
       this._quizPanel.appendChild(quizActions);
@@ -240,6 +246,7 @@
       this._settingsFrame = this._container.querySelector('.ll-settings-panel__frame');
       this._quizPanel = this._container.querySelector('.ll-quiz-panel');
       this._quizQuestion = this._container.querySelector('.ll-quiz-question');
+      this._quizSupportQuote = this._container.querySelector('.ll-quiz-support-quote');
       this._quizOptions = this._container.querySelector('.ll-quiz-options');
       this._quizFeedback = this._container.querySelector('.ll-quiz-feedback');
       this._quizFeedbackTitle = this._container.querySelector('.ll-quiz-feedback-title');
@@ -460,6 +467,8 @@
 
       this._quizHandlers = handlers;
       this._quizQuestion.textContent = quiz.question || '';
+      this._quizSupportQuote.textContent = '';
+      this._quizSupportQuote.hidden = true;
       this._quizOptions.innerHTML = '';
       this._quizFeedback.hidden = true;
       this._quizFeedback.classList.remove('ll-quiz-feedback--correct', 'll-quiz-feedback--incorrect');
@@ -545,6 +554,8 @@
       this._container?.classList.remove('ll-overlay--quiz-active');
       this._player?.classList.remove('ll-player--quiz-active');
       this._quizQuestion.textContent = '';
+      this._quizSupportQuote.textContent = '';
+      this._quizSupportQuote.hidden = true;
       this._quizOptions.innerHTML = '';
       this._quizFeedback.hidden = true;
       this._quizFeedback.classList.remove('ll-quiz-feedback--correct', 'll-quiz-feedback--incorrect');
@@ -673,6 +684,7 @@
       this._player = null;
       this._quizPanel = null;
       this._quizQuestion = null;
+      this._quizSupportQuote = null;
       this._quizOptions = null;
       this._quizFeedback = null;
       this._quizFeedbackTitle = null;

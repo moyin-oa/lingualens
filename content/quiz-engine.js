@@ -23,14 +23,14 @@
       this._difficulty = 'intermediate';
       this._nativeLang = 'en';
       this._sourceLang = 'auto';
+      this._translationLang = 'en';
       this._studyMode = 'normal';
-      this._prefetchLead = 3;
-      this._cachedQuiz = null;
       this._activeQuiz = null;
       this._requestToken = 0;
       this._inFlightToken = null;
       this._hasLoggedMissingOverlay = false;
       this._recentTranslations = new Map();
+      this._cycleLines = [];
 
       this._onSubtitleLine = this._onSubtitleLine.bind(this);
       this._onStudyModeChange = this._onStudyModeChange.bind(this);
@@ -136,6 +136,7 @@
       }
 
       this._recentTranslations.set(originalText, translatedText);
+      this._translationLang = String(event.detail?.targetLang || this._translationLang || 'en').trim() || 'en';
 
       if (this._recentTranslations.size > 25) {
         const oldestKey = this._recentTranslations.keys().next().value;
@@ -145,7 +146,7 @@
       }
     }
 
-    _onSubtitleLine() {
+    _onSubtitleLine(event) {
       if (!this._isQuizModeEnabled()) {
         return;
       }
@@ -154,12 +155,19 @@
         return;
       }
 
-      this._linesSinceLastQuiz += 1;
+      if (event?.detail) {
+        this._cycleLines.push({
+          text: String(event.detail.text || '').trim(),
+          timestamp: Number(event.detail.timestamp || 0),
+          lineIndex: Number(event.detail.lineIndex || 0),
+        });
 
-      const prefetchAt = Math.max(1, this._frequency - this._prefetchLead);
-      if (this._linesSinceLastQuiz >= prefetchAt && !this._cachedQuiz && !this._inFlightToken) {
-        this._prefetchQuiz();
+        if (this._cycleLines.length > this._frequency) {
+          this._cycleLines = this._cycleLines.slice(-this._frequency);
+        }
       }
+
+      this._linesSinceLastQuiz += 1;
 
       if (this._linesSinceLastQuiz >= this._frequency) {
         this._triggerQuiz();
@@ -170,8 +178,8 @@
       return this._studyMode === 'normal';
     }
 
-    _buildQuizPayload() {
-      const contextLines = this._engine.getRecentLines(6);
+    _buildQuizContextLines() {
+      const contextLines = this._cycleLines.slice(-this._frequency);
       if (!Array.isArray(contextLines) || contextLines.length < 2) {
         return null;
       }
@@ -185,19 +193,45 @@
         };
       });
 
+      return pairedContextLines;
+    }
+
+    async _buildQuizPayload() {
+      let contextLines = this._buildQuizContextLines();
+      if (!contextLines) {
+        return null;
+      }
+
+      const deadline = Date.now() + 1200;
+      while (contextLines.some((line) => !line.translated_text) && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 120));
+        contextLines = this._buildQuizContextLines();
+        if (!contextLines) {
+          return null;
+        }
+      }
+
+      if (contextLines.some((line) => !line.translated_text)) {
+        return null;
+      }
+
       return {
-        contextLines: pairedContextLines,
+        contextLines,
+        quizFrequency: this._frequency,
         difficulty: this._difficulty,
         nativeLang: this._nativeLang,
         sourceLang: this._sourceLang,
+        translationLang: this._translationLang,
         videoTitle: document.title.replace(/\s*-\s*YouTube\s*$/, ''),
         videoUrl: window.location.href,
       };
     }
 
-    async _prefetchQuiz() {
-      const payload = this._buildQuizPayload();
+    async _requestQuiz() {
+      const payload = await this._buildQuizPayload();
       if (!payload) {
+        console.log('[LinguaLens] Quiz skipped: bilingual subtitle context not ready.');
+        this._clearPrefetchState();
         return;
       }
 
@@ -221,20 +255,19 @@
         }
 
         if (response?.quiz) {
-          this._cachedQuiz = {
-            ...response.quiz,
-            contextLines: payload.contextLines,
-            generatedAt: Date.now(),
-          };
+          this._presentQuiz(response.quiz, payload.contextLines);
         } else if (response?.skipped) {
           console.log('[LinguaLens] Quiz prefetch skipped:', response.reason);
+          this._clearPrefetchState();
         } else if (response?.error) {
           console.warn('[LinguaLens] Quiz prefetch failed:', response.error);
+          this._clearPrefetchState();
         }
       } catch (err) {
         if (this._inFlightToken === requestToken) {
           this._inFlightToken = null;
         }
+        this._clearPrefetchState();
         console.warn('[LinguaLens] Quiz prefetch request failed.', err);
       }
     }
@@ -245,28 +278,28 @@
         return;
       }
 
-      if (!this._cachedQuiz) {
-        console.log('[LinguaLens] Quiz cache miss at trigger time, skipping cycle.');
-        this._resetCycle();
-        this._clearPrefetchState();
-        return;
-      }
-
       if (!this._overlay?.showQuiz) {
         if (!this._hasLoggedMissingOverlay) {
           console.warn('[LinguaLens] QuizEngine: Overlay quiz UI is unavailable.');
           this._hasLoggedMissingOverlay = true;
         }
-        this._resetCycle();
         this._clearPrefetchState();
         return;
       }
 
+      if (this._inFlightToken) {
+        return;
+      }
+
+      this._requestQuiz();
+    }
+
+    _presentQuiz(quiz, contextLines) {
       this._activeQuiz = {
-        ...this._cachedQuiz,
+        ...quiz,
+        contextLines,
         shownAt: Date.now(),
       };
-      this._cachedQuiz = null;
       this._resetCycle();
 
       setTimeout(() => {
@@ -316,15 +349,19 @@
       try {
         const result = {
           id: `quiz_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          question_type: this._activeQuiz.question_type || '',
           question: this._activeQuiz.question,
-          quoted_term: this._activeQuiz.quoted_term,
+          source_phrase: this._activeQuiz.source_phrase || '',
           options: [...this._activeQuiz.options],
           correct_index: this._activeQuiz.correct_index,
           selected_index: this._activeQuiz.selectedIndex,
           correct: this._activeQuiz.correct,
           explanation: this._activeQuiz.explanation,
           target_word: this._activeQuiz.target_word,
+          language: this._nativeLang,
           difficulty: this._difficulty,
+          source_lang: this._sourceLang,
+          native_lang: this._nativeLang,
           context_lines: (this._activeQuiz.contextLines || []).map((line) => ({
             text: line.text,
             timestamp: line.timestamp,
@@ -375,7 +412,6 @@
     }
 
     _clearPrefetchState() {
-      this._cachedQuiz = null;
       this._inFlightToken = null;
       this._requestToken += 1;
       this._resetCycle();
@@ -383,6 +419,7 @@
 
     _resetCycle() {
       this._linesSinceLastQuiz = 0;
+      this._cycleLines = [];
     }
 
     destroy() {
@@ -394,6 +431,7 @@
       this._clearPrefetchState();
       this._activeQuiz = null;
       this._recentTranslations.clear();
+      this._cycleLines = [];
       this._overlay = null;
       this._video = null;
     }

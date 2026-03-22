@@ -49,6 +49,7 @@
   let wordLookup = null;
   let activeSettings = { ...DEFAULT_SETTINGS };
   let settingsListenersAttached = false;
+  let runtimeListenerAttached = false;
 
   /**
    * Initialise LinguaLens on a YouTube video page.
@@ -127,6 +128,7 @@
     await loadSettings();
     applySettings(activeSettings, { force: true, refreshTranslation: false });
     attachSettingsListeners();
+    attachRuntimeListener();
 
     // 7. Listen for subtitle events and update overlay
     document.addEventListener('subtitleLine', onSubtitleLine);
@@ -184,6 +186,7 @@
     document.removeEventListener('subtitleLine', onSubtitleLine);
     document.removeEventListener('subtitleClear', onSubtitleClear);
     detachSettingsListeners();
+    detachRuntimeListener();
 
     if (subtitleNav) {
       subtitleNav.destroy();
@@ -246,6 +249,24 @@
     settingsListenersAttached = false;
   }
 
+  function attachRuntimeListener() {
+    if (runtimeListenerAttached) {
+      return;
+    }
+
+    chrome.runtime.onMessage.addListener(onRuntimeMessage);
+    runtimeListenerAttached = true;
+  }
+
+  function detachRuntimeListener() {
+    if (!runtimeListenerAttached) {
+      return;
+    }
+
+    chrome.runtime.onMessage.removeListener(onRuntimeMessage);
+    runtimeListenerAttached = false;
+  }
+
   function onStorageChanged(changes, areaName) {
     if (areaName !== 'local') {
       return;
@@ -286,6 +307,23 @@
     chrome.storage.local.set({ study_mode: mode }).catch((error) => {
       console.warn('[LinguaLens] Failed to persist study mode.', error);
     });
+  }
+
+  function onRuntimeMessage(message, sender, sendResponse) {
+    if (message?.type !== 'LINGUALENS_SEEK_TO') {
+      return false;
+    }
+
+    const timestamp = Math.max(0, Number(message?.payload?.timestamp || 0));
+    const video = subtitleEngine?.getVideo?.() || document.querySelector('video');
+    if (!video) {
+      sendResponse({ ok: false, error: 'No video element found' });
+      return false;
+    }
+
+    video.currentTime = timestamp;
+    sendResponse({ ok: true });
+    return false;
   }
 
   function applySettings(settings, { force = false, refreshTranslation = true } = {}) {

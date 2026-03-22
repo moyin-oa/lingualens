@@ -24,7 +24,6 @@
         "content/subtitle-nav.js",
         "content/quiz-engine.js",
         "content/word-lookup.js",
-        "content/heatmap-engine.js",
         "content/index.js"
       ],
       "css": [

@@ -610,6 +610,16 @@
   line-height: 1.4;
 }
 
+.ll-quiz-support-quote {
+  font-size: clamp(12px, calc(var(--ll-player-width) * 0.0105), 14px);
+  line-height: 1.4;
+  color: rgba(176, 212, 241, 0.95);
+}
+
+.ll-quiz-support-quote[hidden] {
+  display: none;
+}
+
 .ll-quiz-options {
   display: grid;
   grid-template-columns: 1fr;

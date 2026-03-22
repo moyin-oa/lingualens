@@ -14,102 +14,235 @@
       <p class="ll-hero__subtitle">
         Tune subtitles, quizzes, and study flow without leaving your video.
       </p>
-      <div id="save-status" class="ll-save-status" role="status" aria-live="polite">
+      <div id="save-status" class="ll-save-status" role="status" aria-live="polite" hidden aria-hidden="true">
         Ready
       </div>
     </header>
 
-    <section class="ll-card ll-card--muted">
-      <div class="ll-card__header">
-        <div>
-          <p class="ll-card__kicker">Account</p>
-          <h2>LinguaLens Account</h2>
-        </div>
-      </div>
+    <nav class="ll-tabs" aria-label="Popup sections">
+      <button
+        id="tab-controls"
+        type="button"
+        class="ll-tab ll-tab--active"
+        data-panel="controls"
+        aria-controls="panel-controls"
+        aria-selected="true"
+      >
+        Controls
+      </button>
+      <button
+        id="tab-dashboard"
+        type="button"
+        class="ll-tab"
+        data-panel="dashboard"
+        aria-controls="panel-dashboard"
+        aria-selected="false"
+      >
+        Dashboard
+      </button>
+    </nav>
 
-      <div id="auth-banner" class="ll-banner" role="status" aria-live="polite"></div>
-
-      <div id="guest-state" class="ll-auth-state">
-        <p class="ll-field__hint">
-          Sign in to get your LinguaLens account ready for cloud sync. We’ll open a secure browser window to continue.
-        </p>
-        <div class="ll-detail-list">
-          <div class="ll-detail-row">
-            <span>Session</span>
-            <span>Not signed in</span>
-          </div>
-          <div class="ll-detail-row">
-            <span>Sync</span>
-            <span>Saved on this device only.</span>
-          </div>
-        </div>
-        <div class="ll-auth-actions ll-auth-actions--stacked">
-          <button id="sign-in-button" type="button" class="ll-button">Sign In</button>
-          <button id="sign-up-button" type="button" class="ll-button ll-button--ghost">Create Account</button>
-        </div>
-      </div>
-
-      <div id="authenticated-state" class="ll-auth-state" hidden>
-        <div class="ll-session">
-          <p class="ll-session__label">Signed in as</p>
-          <p id="user-email" class="ll-session__value">user@example.com</p>
-        </div>
-        <div class="ll-detail-list">
-          <div class="ll-detail-row">
-            <span>Session</span>
-            <span id="account-status">Active</span>
-          </div>
-          <div class="ll-detail-row">
-            <span>Sync</span>
-            <span id="sync-status">Ready when Phase 8 is enabled</span>
-          </div>
-        </div>
-        <button id="sign-out-button" type="button" class="ll-button ll-button--danger">
-          Sign Out
-        </button>
-      </div>
-    </section>
-
-    <form id="settings-form" class="ll-stack" novalidate>
-      <section class="ll-card">
+    <section id="panel-controls" class="ll-panel">
+      <section class="ll-card ll-card--muted">
         <div class="ll-card__header">
           <div>
-            <p class="ll-card__kicker">Languages</p>
-            <h2>Subtitle Routing</h2>
+            <p class="ll-card__kicker">Account</p>
+            <h2>LinguaLens Account</h2>
           </div>
         </div>
 
-        <label class="ll-field" for="source_lang">
-          <span class="ll-field__label">Source language</span>
-          <select id="source_lang" name="source_lang" class="ll-field__control"></select>
-          <span class="ll-field__hint">
-            Auto-detect usually works best unless the video switches languages frequently.
-          </span>
-        </label>
+        <div id="auth-banner" class="ll-banner" role="status" aria-live="polite"></div>
 
-        <label class="ll-field" for="native_lang">
-          <span class="ll-field__label">Translation language</span>
-          <select id="native_lang" name="native_lang" class="ll-field__control"></select>
-          <span class="ll-field__hint">
-            Translated subtitles and lookup glosses use this language.
-          </span>
-        </label>
+        <div id="guest-state" class="ll-auth-state">
+          <p class="ll-field__hint">
+            Sign in to get your LinguaLens account ready for cloud sync. We’ll open a secure browser window to continue.
+          </p>
+          <div class="ll-detail-list">
+            <div class="ll-detail-row">
+              <span>Session</span>
+              <span>Not signed in</span>
+            </div>
+            <div class="ll-detail-row">
+              <span>Sync</span>
+              <span>Saved on this device only.</span>
+            </div>
+          </div>
+          <div class="ll-auth-actions ll-auth-actions--stacked">
+            <button id="sign-in-button" type="button" class="ll-button">Sign In</button>
+            <button id="sign-up-button" type="button" class="ll-button ll-button--ghost">Create Account</button>
+          </div>
+        </div>
+
+        <div id="authenticated-state" class="ll-auth-state" hidden>
+          <div class="ll-session">
+            <p class="ll-session__label">Signed in as</p>
+            <p id="user-email" class="ll-session__value">user@example.com</p>
+          </div>
+          <div class="ll-detail-list">
+            <div class="ll-detail-row">
+              <span>Session</span>
+              <span id="account-status">Active</span>
+            </div>
+            <div class="ll-detail-row">
+              <span>Sync</span>
+              <span id="sync-status">Ready when Phase 8 is enabled</span>
+            </div>
+          </div>
+          <button id="sign-out-button" type="button" class="ll-button ll-button--danger">
+            Sign Out
+          </button>
+        </div>
       </section>
 
-      <section class="ll-card">
+      <form id="settings-form" class="ll-stack" novalidate>
+        <section class="ll-card">
+          <div class="ll-card__header">
+            <div>
+              <p class="ll-card__kicker">Languages</p>
+              <h2>Subtitle Routing</h2>
+            </div>
+          </div>
+
+          <label class="ll-field" for="source_lang">
+            <span class="ll-field__label">Source language</span>
+            <select id="source_lang" name="source_lang" class="ll-field__control"></select>
+            <span class="ll-field__hint">
+              Auto-detect usually works best unless the video switches languages frequently.
+            </span>
+          </label>
+
+          <label class="ll-field" for="native_lang">
+            <span class="ll-field__label">Translation language</span>
+            <select id="native_lang" name="native_lang" class="ll-field__control"></select>
+            <span class="ll-field__hint">
+              Translated subtitles and lookup glosses use this language.
+            </span>
+          </label>
+        </section>
+
+        <section class="ll-card">
+          <div class="ll-card__header">
+            <div>
+              <p class="ll-card__kicker">Overlay</p>
+              <h2>Subtitle Layers</h2>
+            </div>
+          </div>
+
+          <label class="ll-toggle">
+            <span class="ll-toggle__copy">
+              <span class="ll-toggle__label">Dual subtitles</span>
+              <span class="ll-toggle__hint">Show translated subtitles beneath the original line.</span>
+            </span>
+            <input id="dual_subtitle" name="dual_subtitle" type="checkbox">
+            <span class="ll-toggle__track" aria-hidden="true"></span>
+          </label>
+        </section>
+
+        <section class="ll-card">
+          <div class="ll-card__header">
+            <div>
+              <p class="ll-card__kicker">Quiz</p>
+              <h2>Comprehension Checks</h2>
+            </div>
+          </div>
+
+          <label class="ll-field" for="difficulty">
+            <span class="ll-field__label">Difficulty</span>
+            <select id="difficulty" name="difficulty" class="ll-field__control">
+              <option value="beginner">Beginner</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="advanced">Advanced</option>
+            </select>
+          </label>
+
+          <label class="ll-field" for="quiz_frequency">
+            <span class="ll-field__label">Quiz frequency</span>
+            <div class="ll-range-row">
+              <input
+                id="quiz_frequency"
+                name="quiz_frequency"
+                class="ll-range"
+                type="range"
+                min="5"
+                max="20"
+                step="1"
+              >
+              <output id="quiz-frequency-value" class="ll-range__value" for="quiz_frequency">
+                10 lines
+              </output>
+            </div>
+            <span class="ll-field__hint">
+              A new quiz appears after this many subtitle lines.
+            </span>
+          </label>
+        </section>
+
+        <section class="ll-card">
+          <div class="ll-card__header">
+            <div>
+              <p class="ll-card__kicker">Study</p>
+              <h2>Session Behavior</h2>
+            </div>
+          </div>
+
+          <label class="ll-field" for="copy_format">
+            <span class="ll-field__label">Copy format</span>
+            <select id="copy_format" name="copy_format" class="ll-field__control">
+              <option value="target">Original only</option>
+              <option value="native">Translation only</option>
+              <option value="both">Original + translation</option>
+            </select>
+          </label>
+
+          <label class="ll-field" for="study_mode">
+            <span class="ll-field__label">Study mode</span>
+            <select id="study_mode" name="study_mode" class="ll-field__control">
+              <option value="normal">Normal</option>
+              <option value="auto-pause">Auto-pause</option>
+            </select>
+            <span class="ll-field__hint">
+              Auto-pause stops after each subtitle line until you continue playback.
+            </span>
+          </label>
+        </section>
+      </form>
+    </section>
+
+    <section id="panel-dashboard" class="ll-panel" hidden>
+      <section class="ll-card ll-card--muted">
         <div class="ll-card__header">
           <div>
-            <p class="ll-card__kicker">Overlay</p>
-            <h2>Subtitle Layers</h2>
+            <p class="ll-card__kicker">Dashboard</p>
+            <h2>Saved Vocabulary</h2>
           </div>
+          <span id="vocab-summary" class="ll-chip">0 saved</span>
         </div>
 
-        <label class="ll-toggle">
+        <div class="ll-filter-grid">
+          <label class="ll-field" for="filter_language">
+            <span class="ll-field__label">Language</span>
+            <select id="filter_language" class="ll-field__control">
+              <option value="all">All languages</option>
+            </select>
+          </label>
+
+          <label class="ll-field" for="filter_date">
+            <span class="ll-field__label">Date</span>
+            <select id="filter_date" class="ll-field__control">
+              <option value="all">All time</option>
+              <option value="7d">Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+              <option value="90d">Last 90 days</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="ll-toggle ll-toggle--compact">
           <span class="ll-toggle__copy">
-            <span class="ll-toggle__label">Dual subtitles</span>
-            <span class="ll-toggle__hint">Show translated subtitles beneath the original line.</span>
+            <span class="ll-toggle__label">Starred only</span>
+            <span class="ll-toggle__hint">Focus on your marked review words.</span>
           </span>
-          <input id="dual_subtitle" name="dual_subtitle" type="checkbox">
+          <input id="filter_starred" type="checkbox">
           <span class="ll-toggle__track" aria-hidden="true"></span>
         </label>
       </section>
@@ -117,71 +250,34 @@
       <section class="ll-card">
         <div class="ll-card__header">
           <div>
-            <p class="ll-card__kicker">Quiz</p>
-            <h2>Comprehension Checks</h2>
+            <p class="ll-card__kicker">Vocab List</p>
+            <h2>Saved Words</h2>
           </div>
         </div>
-
-        <label class="ll-field" for="difficulty">
-          <span class="ll-field__label">Difficulty</span>
-          <select id="difficulty" name="difficulty" class="ll-field__control">
-            <option value="beginner">Beginner</option>
-            <option value="intermediate">Intermediate</option>
-            <option value="advanced">Advanced</option>
-          </select>
-        </label>
-
-        <label class="ll-field" for="quiz_frequency">
-          <span class="ll-field__label">Quiz frequency</span>
-          <div class="ll-range-row">
-            <input
-              id="quiz_frequency"
-              name="quiz_frequency"
-              class="ll-range"
-              type="range"
-              min="5"
-              max="20"
-              step="1"
-            >
-            <output id="quiz-frequency-value" class="ll-range__value" for="quiz_frequency">
-              10 lines
-            </output>
-          </div>
-          <span class="ll-field__hint">
-            A new quiz appears after this many subtitle lines.
-          </span>
-        </label>
+        <div id="vocab-list" class="ll-vocab-list" aria-live="polite"></div>
       </section>
 
       <section class="ll-card">
         <div class="ll-card__header">
           <div>
-            <p class="ll-card__kicker">Study</p>
-            <h2>Session Behavior</h2>
+            <p class="ll-card__kicker">Quiz History</p>
+            <h2>Accuracy Snapshot</h2>
           </div>
         </div>
 
-        <label class="ll-field" for="copy_format">
-          <span class="ll-field__label">Copy format</span>
-          <select id="copy_format" name="copy_format" class="ll-field__control">
-            <option value="target">Original only</option>
-            <option value="native">Translation only</option>
-            <option value="both">Original + translation</option>
-          </select>
-        </label>
-
-        <label class="ll-field" for="study_mode">
-          <span class="ll-field__label">Study mode</span>
-          <select id="study_mode" name="study_mode" class="ll-field__control">
-            <option value="normal">Normal</option>
-            <option value="auto-pause">Auto-pause</option>
-          </select>
-          <span class="ll-field__hint">
-            Auto-pause stops after each subtitle line until you continue playback.
-          </span>
-        </label>
+        <div id="quiz-overview" class="ll-stat-grid"></div>
+        <div class="ll-section-divider"></div>
+        <div>
+          <p class="ll-mini-heading">By difficulty</p>
+          <div id="quiz-difficulty-stats" class="ll-metric-list"></div>
+        </div>
+        <div class="ll-section-divider"></div>
+        <div>
+          <p class="ll-mini-heading">By language</p>
+          <div id="quiz-language-stats" class="ll-metric-list"></div>
+        </div>
       </section>
-    </form>
+    </section>
   </main>
 
   <script src="popup.js" type="module"></script>
