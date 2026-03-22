@@ -12,9 +12,11 @@
   class Overlay {
     constructor() {
       this._container = null;
+      this._subtitleArea = null;
       this._originalRow = null;
       this._nativeRow = null;
       this._phoneticRow = null;
+      this._navBar = null;
       this._resizeObserver = null;
     }
 
@@ -41,10 +43,14 @@
       this._container.id = OVERLAY_ID;
       this._container.className = 'll-overlay';
       this._container.setAttribute('aria-live', 'polite');
+      this._container.setAttribute('tabindex', '0');
+      this._container.setAttribute('role', 'group');
+      this._container.setAttribute('aria-label', 'LinguaLens subtitle controls');
 
       // Subtitle display area
-      const subtitleArea = document.createElement('div');
-      subtitleArea.className = 'll-subtitle-area';
+      this._subtitleArea = document.createElement('div');
+      this._subtitleArea.className = 'll-subtitle-area';
+      const subtitleArea = this._subtitleArea;
 
       // Original subtitle row (target language)
       this._originalRow = document.createElement('div');
@@ -63,10 +69,17 @@
       this._phoneticRow.setAttribute('aria-label', 'Phonetic transcription');
       this._phoneticRow.style.display = 'none';
 
+      // Nav bar (populated by SubtitleNav module)
+      this._navBar = document.createElement('div');
+      this._navBar.className = 'll-nav-bar';
+      this._navBar.setAttribute('role', 'toolbar');
+      this._navBar.setAttribute('aria-label', 'Subtitle navigation');
+
       // Assemble
       subtitleArea.appendChild(this._originalRow);
       subtitleArea.appendChild(this._nativeRow);
       subtitleArea.appendChild(this._phoneticRow);
+      subtitleArea.appendChild(this._navBar);
       this._container.appendChild(subtitleArea);
 
       // Inject into player (positioned absolutely relative to player)
@@ -84,9 +97,11 @@
      * Bind internal references to existing DOM elements (if overlay already exists)
      */
     _bindElements() {
+      this._subtitleArea = this._container.querySelector('.ll-subtitle-area');
       this._originalRow = this._container.querySelector('.ll-subtitle-row--original');
       this._nativeRow = this._container.querySelector('.ll-subtitle-row--native');
       this._phoneticRow = this._container.querySelector('.ll-subtitle-row--phonetic');
+      this._navBar = this._container.querySelector('.ll-nav-bar');
     }
 
     /**
@@ -189,6 +204,20 @@
      */
     getNativeRow() {
       return this._nativeRow;
+    }
+
+    /**
+     * Get the nav bar container element (for SubtitleNav to inject buttons)
+     */
+    getNavBar() {
+      return this._navBar;
+    }
+
+    /**
+     * Get the subtitle area container
+     */
+    getSubtitleArea() {
+      return this._subtitleArea;
     }
 
     /**

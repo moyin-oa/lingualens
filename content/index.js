@@ -14,6 +14,7 @@
   let subtitleEngine = null;
   let overlay = null;
   let translationEngine = null;
+  let subtitleNav = null;
 
   /**
    * Initialise LinguaLens on a YouTube video page.
@@ -71,7 +72,11 @@
     translationEngine = new LL.TranslationEngine();
     translationEngine.init(overlay);
 
-    // 4. Listen for subtitle events and update overlay
+    // 4. Subtitle Navigation — wire up to subtitle engine and overlay
+    subtitleNav = new LL.SubtitleNav(subtitleEngine, overlay);
+    subtitleNav.init();
+
+    // 5. Listen for subtitle events and update overlay
     document.addEventListener('subtitleLine', onSubtitleLine);
     document.addEventListener('subtitleClear', onSubtitleClear);
 
@@ -80,6 +85,7 @@
       subtitleEngine,
       overlay,
       translationEngine,
+      subtitleNav,
     };
     LL._initialised = true;
 
@@ -117,6 +123,10 @@
     document.removeEventListener('subtitleLine', onSubtitleLine);
     document.removeEventListener('subtitleClear', onSubtitleClear);
 
+    if (subtitleNav) {
+      subtitleNav.destroy();
+      subtitleNav = null;
+    }
     if (subtitleEngine) {
       subtitleEngine.destroy();
       subtitleEngine = null;
