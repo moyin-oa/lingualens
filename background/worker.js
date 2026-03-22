@@ -410,17 +410,17 @@ async function handleQuizGeneration(payload) {
       'Return valid JSON only.',
       `Read the last ${Number(quizFrequency || contextLines.length || 0)} subtitle lines as one short scene.`,
       'Use both text and translated_text to understand who is speaking, what they are doing, and what just happened.',
-      `question_type must be one of: paraphrase, reference, intent, response, situation.`,
+      `question_type must be one of: paraphrase, reference, intent, response, situation, synonym, antonym, idiom.`,
       `Write the question, all 4 options, and the explanation in ${subtitleLanguageName}.`,
-      `source_phrase must be one short exact phrase copied from translated_text in ${translationLanguageName}, not from the original subtitle text.`,
-      'The question should directly ask about source_phrase or the translated phrase containing it.',
+      `source_phrase must be one short exact phrase copied from translated_text in ${translationLanguageName}, not from the original subtitle text in ${subtitleLanguageName}.`,
+      'The question should directly ask about source_phrase itself, not about the original subtitle wording.',
       'The question must include source_phrase verbatim.',
-      'Do not include the original subtitle text verbatim inside the question unless necessary for natural wording.',
-      'The question should be in the learner/source-side language and quote the target/content-language phrase.',
+      `The question must be written in ${subtitleLanguageName} and quote the translated phrase from ${translationLanguageName}.`,
+      'Do not quote the original subtitle-language wording inside the question.',
       'It is okay to ask "What does [source_phrase] mean here?" or "What does the speaker mean by [source_phrase]?" when that is the most useful language-learning question.',
       'The question should sound like something you would casually ask a friend, not like film analysis, literature class, psychology, or a worksheet.',
       'This is a language-learning quiz, so prefer understanding the dialogue itself over interpreting the movie.',
-      'Good question angles include: which paraphrase best matches what was said, what the quoted target phrase means here, who or what someone is referring to, what someone means by a line, why a speaker uses an expression, or what reaction fits.',
+      'Good question angles include: which paraphrase best matches what was said, what the quoted translated phrase means here, who or what someone is referring to, what someone means by a line, why a speaker uses an expression, what reaction fits, which option is closest in meaning, which option is the opposite in meaning, or what an idiom/expression means in this moment.',
       'Ask about any moment from the provided subtitle window, but stay close to one moment or one utterance rather than synthesizing distant lines into a broad interpretation.',
       'Do not ask about themes, symbolism, character arcs, moral lessons, personality traits, or what the scene implies in a broad analytical sense.',
       'Do not ask questions like "what does this imply about X generally?" or "what does this reveal about the character?"',
@@ -432,7 +432,7 @@ async function handleQuizGeneration(payload) {
       'Do not repeat source_phrase verbatim inside every option.',
       'Use exactly 4 options.',
       'Set correct_index to a zero-based index.',
-      'Set target_word to one important source-language word or short phrase from the subtitle context.',
+      'Set target_word to one important subtitle-language word or short phrase from the original subtitle context.',
       `Write explanation in ${subtitleLanguageName} and keep it short and grounded in the dialogue.`,
       'Base the answer only on the provided context.',
       'Model the style on questions like these:',
@@ -440,7 +440,9 @@ async function handleQuizGeneration(payload) {
       'Example 1 options = ["He loves her.", "He admires her style.", "He is apologizing.", "He wants to leave."]',
       'Example 2: source_phrase = "Ca me donne envie de me perdre" -> question = "What does the singer mean by \\"Ca me donne envie de me perdre\\"?"',
       'Example 2 options = ["It makes them want to give themselves over completely.", "It makes them want to run away in panic.", "It makes them forget the route home.", "It makes them hide from everyone."]',
-      'The examples above are the target style: question in the learner/source-side language, quoted target/content-language phrase, answer options in the question language.',
+      'Example 3: source_phrase = "ca me rend dingue" -> question = "Which option is closest in meaning to \\"ca me rend dingue\\" here?"',
+      'Example 4: source_phrase = "avoir le cafard" -> question = "What does \\"avoir le cafard\\" mean here?"',
+      'The examples above are the target style: question in the original subtitle language, quoted translated phrase, answer options in the original subtitle language.',
     ],
   });
 
@@ -452,7 +454,7 @@ async function handleQuizGeneration(payload) {
     return { error: result.error };
   }
 
-  const quiz = sanitizeQuiz(result.data, sourceLang);
+  const quiz = sanitizeQuiz(result.data, sourceLang, { forceTemplate: true });
   if (!quiz) {
     return { error: 'Gemini returned an invalid quiz payload' };
   }
@@ -735,7 +737,7 @@ async function handleAuthGetSession() {
   return authManager.getSessionState();
 }
 
-function sanitizeQuiz(data, questionLang = 'en') {
+function sanitizeQuiz(data, questionLang = 'en', sanitizeOptions = {}) {
   if (!data || typeof data !== 'object') {
     return null;
   }
@@ -745,31 +747,34 @@ function sanitizeQuiz(data, questionLang = 'en') {
   const sourcePhrase = sanitizeQuotedTerm(data.source_phrase);
   const explanation = stripInlineGloss(String(data.explanation || '').trim());
   const targetWord = String(data.target_word || '').trim();
-  const options = Array.isArray(data.options)
+  const answerOptions = Array.isArray(data.options)
     ? data.options.map((option) => sanitizeQuizOption(option)).filter(Boolean).slice(0, 4)
     : [];
   const correctIndex = Number(data.correct_index);
 
-  if (!questionType || !question || !sourcePhrase || !explanation || !targetWord || options.length !== 4) {
+  if (!questionType || !question || !sourcePhrase || !explanation || !targetWord || answerOptions.length !== 4) {
     return null;
   }
 
-  if (!Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex >= options.length) {
+  if (!Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex >= answerOptions.length) {
     return null;
   }
 
-  const rebuiltQuestion = buildQuizQuestion(question, sourcePhrase, questionLang);
+  const rebuiltQuestion = buildQuizQuestion(question, sourcePhrase, questionLang, {
+    ...sanitizeOptions,
+    questionType,
+  });
   if (!rebuiltQuestion || isAnalyticalQuizQuestion(rebuiltQuestion)) {
     return null;
   }
 
-  const cleanedExplanation = buildQuizExplanation(explanation, sourcePhrase, options[correctIndex]);
+  const cleanedExplanation = buildQuizExplanation(explanation, sourcePhrase, answerOptions[correctIndex]);
 
   return {
     question_type: questionType,
     question: rebuiltQuestion,
     source_phrase: sourcePhrase,
-    options,
+    options: answerOptions,
     correct_index: correctIndex,
     explanation: cleanedExplanation,
     target_word: targetWord,
@@ -820,7 +825,16 @@ function sanitizeQuizOption(option) {
 
 function sanitizeQuestionType(value) {
   const cleanValue = String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
-  const allowedTypes = new Set(['paraphrase', 'reference', 'intent', 'response', 'situation']);
+  const allowedTypes = new Set([
+    'paraphrase',
+    'reference',
+    'intent',
+    'response',
+    'situation',
+    'synonym',
+    'antonym',
+    'idiom',
+  ]);
   return allowedTypes.has(cleanValue) ? cleanValue : '';
 }
 
@@ -871,23 +885,25 @@ function stripInlineGloss(text) {
     .trim();
 }
 
-function buildQuizQuestion(question, sourcePhrase, questionLang = 'en') {
+function buildQuizQuestion(question, sourcePhrase, questionLang = 'en', options = {}) {
+  const forceTemplate = Boolean(options?.forceTemplate);
+  const questionType = String(options?.questionType || 'paraphrase').trim().toLowerCase();
   const cleanQuestion = stripInlineGloss(question)
     .replace(/\s{2,}/g, ' ')
     .replace(/\s+([?!:;,.])/g, '$1')
     .trim();
   const cleanSourcePhrase = String(sourcePhrase || '').trim();
 
-  if (!cleanQuestion) {
+  if (!forceTemplate && !cleanQuestion) {
     return '';
   }
 
-  if (cleanSourcePhrase && cleanQuestion.includes(cleanSourcePhrase)) {
+  if (!forceTemplate && cleanSourcePhrase && cleanQuestion.includes(cleanSourcePhrase)) {
     return ensureQuestionMark(cleanQuestion, questionLang);
   }
 
   const language = normalizeLanguageCode(questionLang);
-  const templated = getSourcePhraseQuestionTemplate(language, cleanSourcePhrase);
+  const templated = getSourcePhraseQuestionTemplate(language, cleanSourcePhrase, questionType);
   if (templated) {
     return templated;
   }
@@ -992,7 +1008,7 @@ function ensureQuestionMark(text, sourceLang = 'auto') {
   return `${cleanText}?`;
 }
 
-function getSourcePhraseQuestionTemplate(language, sourcePhrase) {
+function getSourcePhraseQuestionTemplate(language, sourcePhrase, questionType = 'paraphrase') {
   const cleanSourcePhrase = String(sourcePhrase || '').trim();
   if (!cleanSourcePhrase) {
     return '';
@@ -1000,18 +1016,150 @@ function getSourcePhraseQuestionTemplate(language, sourcePhrase) {
 
   switch (language) {
     case 'fr':
-      return `Que veut dire "${cleanSourcePhrase}" ici ?`;
+      return getFrenchSourcePhraseQuestionTemplate(cleanSourcePhrase, questionType);
     case 'es':
-      return `¿Que quiere decir "${cleanSourcePhrase}" aqui?`;
+      return getSpanishSourcePhraseQuestionTemplate(cleanSourcePhrase, questionType);
     case 'pt':
-      return `O que "${cleanSourcePhrase}" quer dizer aqui?`;
+      return getPortugueseSourcePhraseQuestionTemplate(cleanSourcePhrase, questionType);
     case 'it':
-      return `Che cosa vuol dire "${cleanSourcePhrase}" qui?`;
+      return getItalianSourcePhraseQuestionTemplate(cleanSourcePhrase, questionType);
     case 'de':
-      return `Was bedeutet "${cleanSourcePhrase}" hier?`;
+      return getGermanSourcePhraseQuestionTemplate(cleanSourcePhrase, questionType);
     case 'en':
     default:
-      return `What does "${cleanSourcePhrase}" mean here?`;
+      return getEnglishSourcePhraseQuestionTemplate(cleanSourcePhrase, questionType);
+  }
+}
+
+function getEnglishSourcePhraseQuestionTemplate(sourcePhrase, questionType) {
+  switch (questionType) {
+    case 'synonym':
+      return `Which option is closest in meaning to "${sourcePhrase}" here?`;
+    case 'antonym':
+      return `Which option means the opposite of "${sourcePhrase}" here?`;
+    case 'idiom':
+      return `What does "${sourcePhrase}" mean in this situation?`;
+    case 'intent':
+      return `What are they trying to say with "${sourcePhrase}"?`;
+    case 'reference':
+      return `When someone says "${sourcePhrase}", what are they referring to?`;
+    case 'response':
+      return `When someone says "${sourcePhrase}", what response fits best?`;
+    case 'situation':
+      return `In this moment, what does "${sourcePhrase}" suggest?`;
+    case 'paraphrase':
+    default:
+      return `What did they mean by "${sourcePhrase}"?`;
+  }
+}
+
+function getFrenchSourcePhraseQuestionTemplate(sourcePhrase, questionType) {
+  switch (questionType) {
+    case 'synonym':
+      return `Quelle option est la plus proche de "${sourcePhrase}" ici ?`;
+    case 'antonym':
+      return `Quelle option veut dire le contraire de "${sourcePhrase}" ici ?`;
+    case 'idiom':
+      return `Que veut dire "${sourcePhrase}" dans cette situation ?`;
+    case 'intent':
+      return `Qu'est-ce qu'il ou elle essaie de dire avec "${sourcePhrase}" ?`;
+    case 'reference':
+      return `Quand quelqu'un dit "${sourcePhrase}", de quoi parle-t-il ou elle ?`;
+    case 'response':
+      return `Quand quelqu'un dit "${sourcePhrase}", quelle reponse convient le mieux ?`;
+    case 'situation':
+      return `Dans ce moment, qu'est-ce que "${sourcePhrase}" suggere ?`;
+    case 'paraphrase':
+    default:
+      return `Que veut dire "${sourcePhrase}" ?`;
+  }
+}
+
+function getSpanishSourcePhraseQuestionTemplate(sourcePhrase, questionType) {
+  switch (questionType) {
+    case 'synonym':
+      return `¿Que opcion se acerca mas a "${sourcePhrase}" aqui?`;
+    case 'antonym':
+      return `¿Que opcion significa lo contrario de "${sourcePhrase}" aqui?`;
+    case 'idiom':
+      return `¿Que significa "${sourcePhrase}" en esta situacion?`;
+    case 'intent':
+      return `¿Que intentan decir con "${sourcePhrase}"?`;
+    case 'reference':
+      return `Cuando alguien dice "${sourcePhrase}", ¿a que se refiere?`;
+    case 'response':
+      return `Cuando alguien dice "${sourcePhrase}", ¿que respuesta encaja mejor?`;
+    case 'situation':
+      return `En este momento, ¿que sugiere "${sourcePhrase}"?`;
+    case 'paraphrase':
+    default:
+      return `¿Que quisieron decir con "${sourcePhrase}"?`;
+  }
+}
+
+function getPortugueseSourcePhraseQuestionTemplate(sourcePhrase, questionType) {
+  switch (questionType) {
+    case 'synonym':
+      return `Qual opcao chega mais perto de "${sourcePhrase}" aqui?`;
+    case 'antonym':
+      return `Qual opcao quer dizer o contrario de "${sourcePhrase}" aqui?`;
+    case 'idiom':
+      return `O que "${sourcePhrase}" quer dizer nesta situacao?`;
+    case 'intent':
+      return `O que a pessoa esta tentando dizer com "${sourcePhrase}"?`;
+    case 'reference':
+      return `Quando alguem diz "${sourcePhrase}", a que esta se referindo?`;
+    case 'response':
+      return `Quando alguem diz "${sourcePhrase}", qual resposta combina melhor?`;
+    case 'situation':
+      return `Neste momento, o que "${sourcePhrase}" sugere?`;
+    case 'paraphrase':
+    default:
+      return `O que a pessoa quis dizer com "${sourcePhrase}"?`;
+  }
+}
+
+function getItalianSourcePhraseQuestionTemplate(sourcePhrase, questionType) {
+  switch (questionType) {
+    case 'synonym':
+      return `Quale opzione e piu vicina a "${sourcePhrase}" qui?`;
+    case 'antonym':
+      return `Quale opzione vuol dire il contrario di "${sourcePhrase}" qui?`;
+    case 'idiom':
+      return `Che cosa vuol dire "${sourcePhrase}" in questa situazione?`;
+    case 'intent':
+      return `Che cosa sta cercando di dire con "${sourcePhrase}"?`;
+    case 'reference':
+      return `Quando qualcuno dice "${sourcePhrase}", a che cosa si riferisce?`;
+    case 'response':
+      return `Quando qualcuno dice "${sourcePhrase}", quale risposta si adatta meglio?`;
+    case 'situation':
+      return `In questo momento, che cosa suggerisce "${sourcePhrase}"?`;
+    case 'paraphrase':
+    default:
+      return `Che cosa voleva dire con "${sourcePhrase}"?`;
+  }
+}
+
+function getGermanSourcePhraseQuestionTemplate(sourcePhrase, questionType) {
+  switch (questionType) {
+    case 'synonym':
+      return `Welche Option kommt "${sourcePhrase}" hier am nächsten?`;
+    case 'antonym':
+      return `Welche Option bedeutet hier das Gegenteil von "${sourcePhrase}"?`;
+    case 'idiom':
+      return `Was bedeutet "${sourcePhrase}" in dieser Situation?`;
+    case 'intent':
+      return `Was will die Person mit "${sourcePhrase}" sagen?`;
+    case 'reference':
+      return `Wenn jemand "${sourcePhrase}" sagt, worauf bezieht sich das?`;
+    case 'response':
+      return `Wenn jemand "${sourcePhrase}" sagt, welche Antwort passt am besten?`;
+    case 'situation':
+      return `Was deutet "${sourcePhrase}" in diesem Moment an?`;
+    case 'paraphrase':
+    default:
+      return `Was meinte die Person mit "${sourcePhrase}"?`;
   }
 }
 
