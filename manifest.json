@@ -44,6 +44,16 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "popup/popup.html",
+        "popup/popup.css",
+        "popup/popup.js"
+      ],
+      "matches": ["*://*.youtube.com/*"]
+    }
+  ],
   "host_permissions": [
     "https://translation.googleapis.com/*",
     "https://generativelanguage.googleapis.com/*",

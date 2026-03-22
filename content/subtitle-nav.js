@@ -1,5 +1,5 @@
 // Subtitle Navigation & Study Modes
-// Prev/Next/Repeat buttons, keyboard shortcuts, auto-pause mode
+// Prev/Repeat buttons, keyboard shortcuts, auto-pause mode
 
 (function () {
   'use strict';
@@ -15,10 +15,10 @@
 
       // Button references
       this._prevBtn = null;
-      this._nextBtn = null;
       this._repeatBtn = null;
       this._continueBtn = null;
       this._autoPauseBtn = null;
+      this._settingsBtn = null;
 
       // State
       this._isPausedByAutoPause = false;
@@ -94,15 +94,6 @@
         () => this._seekRepeat()
       );
 
-      // Next button
-      this._nextBtn = this._createButton(
-        'll-nav-btn ll-nav-btn--next',
-        '\u25B6',
-        'Next subtitle',
-        'Next subtitle (Right arrow)',
-        () => this._seekNext()
-      );
-
       // Auto-pause toggle button
       this._autoPauseBtn = this._createButton(
         'll-nav-btn ll-nav-btn--auto-pause',
@@ -122,10 +113,18 @@
       );
       this._continueBtn.style.display = 'none';
 
+      this._settingsBtn = this._overlay.getSettingsButton();
+
       this._navBar.appendChild(this._prevBtn);
       this._navBar.appendChild(this._repeatBtn);
-      this._navBar.appendChild(this._nextBtn);
       this._navBar.appendChild(this._autoPauseBtn);
+      if (this._settingsBtn) {
+        this._settingsBtn.classList.add('ll-nav-btn', 'll-nav-btn--settings');
+        this._settingsBtn.setAttribute('data-tooltip', 'Settings');
+        this._settingsBtn.title = 'Open settings';
+        this._setButtonContent(this._settingsBtn, getSettingsIconSvg(), 'Settings');
+        this._navBar.appendChild(this._settingsBtn);
+      }
       this._navBar.appendChild(this._continueBtn);
     }
 
@@ -141,6 +140,15 @@
       btn.setAttribute('data-tooltip', title);
       btn.addEventListener('click', onClick);
       return btn;
+    }
+
+    _setButtonContent(button, iconSvg, label) {
+      if (!button) {
+        return;
+      }
+
+      button.classList.add('ll-nav-btn--iconic');
+      button.innerHTML = `<span class="ll-nav-btn__icon" aria-hidden="true">${iconSvg}</span><span class="ll-nav-btn__label">${label}</span>`;
     }
 
     /**
@@ -379,10 +387,6 @@
       const prevDisabled = buffer.length === 0 || currentIdx <= 0;
       this._setButtonDisabled(this._prevBtn, prevDisabled);
 
-      // Next is allowed before the first subtitle in the buffer.
-      const nextDisabled = buffer.length === 0 || currentIdx >= buffer.length - 1;
-      this._setButtonDisabled(this._nextBtn, nextDisabled);
-
       // Repeat disabled if no lines in buffer
       const repeatDisabled = buffer.length === 0 || currentIdx < 0;
       this._setButtonDisabled(this._repeatBtn, repeatDisabled);
@@ -407,22 +411,24 @@
      * Set the study mode.
      * @param {'normal'|'auto-pause'} mode
      */
-    setStudyMode(mode) {
-      this._studyMode = mode;
+    setStudyMode(mode, options = {}) {
+      this._studyMode = mode === 'auto-pause' ? 'auto-pause' : 'normal';
 
       // If switching away from auto-pause while paused, resume
-      if (mode !== 'auto-pause' && this._isPausedByAutoPause) {
+      if (this._studyMode !== 'auto-pause' && this._isPausedByAutoPause) {
         this._resume();
       }
 
-      if (mode !== 'auto-pause') {
+      if (this._studyMode !== 'auto-pause') {
         this._showContinueButton(false);
       }
 
       this._updateAutoPauseButton();
-      document.dispatchEvent(new CustomEvent('lingualens:study-mode-change', {
-        detail: { mode: this._studyMode },
-      }));
+      if (!options.silent) {
+        document.dispatchEvent(new CustomEvent('lingualens:study-mode-change', {
+          detail: { mode: this._studyMode },
+        }));
+      }
     }
 
     /**
@@ -453,10 +459,10 @@
       this._container = null;
       this._navBar = null;
       this._prevBtn = null;
-      this._nextBtn = null;
       this._repeatBtn = null;
       this._continueBtn = null;
       this._autoPauseBtn = null;
+      this._settingsBtn = null;
       this._isPausedByAutoPause = false;
       this._hasSeenSubtitle = false;
       this._suppressNextSpaceKeyUp = false;
@@ -465,4 +471,12 @@
 
   window.LinguaLens = window.LinguaLens || {};
   window.LinguaLens.SubtitleNav = SubtitleNav;
+
+  function getSettingsIconSvg() {
+    return [
+      '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">',
+      '<path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.03 7.03 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.23-1.12.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.5.4 1.05.72 1.63.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54c.58-.23 1.12-.54 1.63-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z" fill="currentColor"></path>',
+      '</svg>',
+    ].join('');
+  }
 })();

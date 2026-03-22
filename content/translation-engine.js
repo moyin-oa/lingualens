@@ -12,6 +12,7 @@
       this._targetLang = 'en'; // default — will be configurable in Phase 6
       this._sourceLang = 'auto';
       this._enabled = true;
+      this._requestToken = 0;
     }
 
     /**
@@ -28,10 +29,14 @@
     async translate(text) {
       if (!this._enabled || !text || !this._overlay) return;
 
+      const requestToken = ++this._requestToken;
       const cacheKey = `${text}|${this._targetLang}`;
 
       // Cache hit — instant render
       if (this._cache.has(cacheKey)) {
+        if (!this._enabled || requestToken !== this._requestToken) {
+          return;
+        }
         const cachedTranslation = this._cache.get(cacheKey);
         this._overlay.setNativeText(cachedTranslation);
         this._emitTranslationReady(text, cachedTranslation);
@@ -51,6 +56,10 @@
           },
         });
 
+        if (!this._enabled || requestToken !== this._requestToken) {
+          return;
+        }
+
         if (response.error) {
           this._overlay.setNativeText(`⚠ ${response.error}`);
           return;
@@ -61,6 +70,9 @@
         this._overlay.setNativeText(response.translation);
         this._emitTranslationReady(text, response.translation);
       } catch (err) {
+        if (!this._enabled || requestToken !== this._requestToken) {
+          return;
+        }
         this._overlay.setNativeText('⚠ Translation unavailable');
       }
     }
@@ -69,6 +81,7 @@
      * Clear the translation display (e.g. when subtitles disappear).
      */
     clear() {
+      this._requestToken += 1;
       if (this._overlay) {
         this._overlay.setNativeText('');
       }

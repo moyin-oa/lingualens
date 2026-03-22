@@ -4,28 +4,134 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LinguaLens</title>
-  <style>
-    /* TODO: Implement popup styles in Phase 6 */
-    body {
-      width: 360px;
-      min-height: 480px;
-      margin: 0;
-      padding: 16px;
-      font-family: 'Segoe UI', Roboto, Arial, sans-serif;
-      font-size: 14px;
-      color: #1a1a1a;
-      background: #ffffff;
-    }
-
-    h1 {
-      font-size: 20px;
-      margin: 0 0 16px;
-    }
-  </style>
+  <link rel="stylesheet" href="popup.css">
 </head>
-<body>
-  <h1>LinguaLens</h1>
-  <p>Settings and dashboard coming in Phase 6.</p>
+<body class="ll-popup">
+  <main class="ll-shell">
+    <header class="ll-hero">
+      <p class="ll-hero__eyebrow">Study Controls</p>
+      <h1>LinguaLens</h1>
+      <p class="ll-hero__subtitle">
+        Tune subtitles, quizzes, and study flow without leaving your video.
+      </p>
+      <div id="save-status" class="ll-save-status" role="status" aria-live="polite">
+        Ready
+      </div>
+    </header>
+
+    <form id="settings-form" class="ll-stack" novalidate>
+      <section class="ll-card">
+        <div class="ll-card__header">
+          <div>
+            <p class="ll-card__kicker">Languages</p>
+            <h2>Subtitle Routing</h2>
+          </div>
+        </div>
+
+        <label class="ll-field" for="source_lang">
+          <span class="ll-field__label">Source language</span>
+          <select id="source_lang" name="source_lang" class="ll-field__control"></select>
+          <span class="ll-field__hint">
+            Auto-detect usually works best unless the video switches languages frequently.
+          </span>
+        </label>
+
+        <label class="ll-field" for="native_lang">
+          <span class="ll-field__label">Translation language</span>
+          <select id="native_lang" name="native_lang" class="ll-field__control"></select>
+          <span class="ll-field__hint">
+            Translated subtitles and lookup glosses use this language.
+          </span>
+        </label>
+      </section>
+
+      <section class="ll-card">
+        <div class="ll-card__header">
+          <div>
+            <p class="ll-card__kicker">Overlay</p>
+            <h2>Subtitle Layers</h2>
+          </div>
+        </div>
+
+        <label class="ll-toggle">
+          <span class="ll-toggle__copy">
+            <span class="ll-toggle__label">Dual subtitles</span>
+            <span class="ll-toggle__hint">Show translated subtitles beneath the original line.</span>
+          </span>
+          <input id="dual_subtitle" name="dual_subtitle" type="checkbox">
+          <span class="ll-toggle__track" aria-hidden="true"></span>
+        </label>
+      </section>
+
+      <section class="ll-card">
+        <div class="ll-card__header">
+          <div>
+            <p class="ll-card__kicker">Quiz</p>
+            <h2>Comprehension Checks</h2>
+          </div>
+        </div>
+
+        <label class="ll-field" for="difficulty">
+          <span class="ll-field__label">Difficulty</span>
+          <select id="difficulty" name="difficulty" class="ll-field__control">
+            <option value="beginner">Beginner</option>
+            <option value="intermediate">Intermediate</option>
+            <option value="advanced">Advanced</option>
+          </select>
+        </label>
+
+        <label class="ll-field" for="quiz_frequency">
+          <span class="ll-field__label">Quiz frequency</span>
+          <div class="ll-range-row">
+            <input
+              id="quiz_frequency"
+              name="quiz_frequency"
+              class="ll-range"
+              type="range"
+              min="5"
+              max="20"
+              step="1"
+            >
+            <output id="quiz-frequency-value" class="ll-range__value" for="quiz_frequency">
+              10 lines
+            </output>
+          </div>
+          <span class="ll-field__hint">
+            A new quiz appears after this many subtitle lines.
+          </span>
+        </label>
+      </section>
+
+      <section class="ll-card">
+        <div class="ll-card__header">
+          <div>
+            <p class="ll-card__kicker">Study</p>
+            <h2>Session Behavior</h2>
+          </div>
+        </div>
+
+        <label class="ll-field" for="copy_format">
+          <span class="ll-field__label">Copy format</span>
+          <select id="copy_format" name="copy_format" class="ll-field__control">
+            <option value="target">Original only</option>
+            <option value="native">Translation only</option>
+            <option value="both">Original + translation</option>
+          </select>
+        </label>
+
+        <label class="ll-field" for="study_mode">
+          <span class="ll-field__label">Study mode</span>
+          <select id="study_mode" name="study_mode" class="ll-field__control">
+            <option value="normal">Normal</option>
+            <option value="auto-pause">Auto-pause</option>
+          </select>
+          <span class="ll-field__hint">
+            Auto-pause stops after each subtitle line until you continue playback.
+          </span>
+        </label>
+      </section>
+    </form>
+  </main>
 
   <script src="popup.js" type="module"></script>
 </body>

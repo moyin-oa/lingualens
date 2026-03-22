@@ -4,11 +4,13 @@
 
 import { CONFIG } from './config.js';
 import { getVoiceId } from '../data/elevenlabs-voices.js';
+import { getLanguageName } from '../data/languages.js';
 
 const QUIZ_RESPONSE_SCHEMA = {
   type: 'OBJECT',
   properties: {
     question: { type: 'STRING' },
+    quoted_term: { type: 'STRING' },
     options: {
       type: 'ARRAY',
       items: { type: 'STRING' },
@@ -19,7 +21,7 @@ const QUIZ_RESPONSE_SCHEMA = {
     explanation: { type: 'STRING' },
     target_word: { type: 'STRING' },
   },
-  required: ['question', 'options', 'correct_index', 'explanation', 'target_word'],
+  required: ['question', 'quoted_term', 'options', 'correct_index', 'explanation', 'target_word'],
 };
 
 const WORD_LOOKUP_RESPONSE_SCHEMA = {
@@ -164,6 +166,8 @@ const WORD_GLOSS_PREFETCH_INSTRUCTION = [
 ].join(' ');
 
 const ttsAudioCache = new Map();
+const QUOTED_PHRASE_PATTERN = /"([^"]+)"|“([^”]+)”|«\s*([^»]+?)\s*»/g;
+const SINGLE_QUOTED_PHRASE_PATTERN = /(^|[\s([{])'([^']+)'(?=[\s)\]}:;,.!?]|$)/g;
 
 // Message router
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -332,20 +336,34 @@ async function handleQuizGeneration(payload) {
     return { skipped: true, reason: 'Not enough subtitle context' };
   }
 
+  const nativeLanguageName = describeLanguage(nativeLang);
+  const subtitleLanguageName = describeLanguage(sourceLang);
   const quizInstruction = QUIZ_INSTRUCTIONS[difficulty] || QUIZ_INSTRUCTIONS.intermediate;
   const userContent = JSON.stringify({
     task: 'Generate a multiple-choice language-learning quiz from recent subtitle context.',
     learner_native_language: nativeLang,
+    learner_native_language_name: nativeLanguageName,
     subtitle_language: sourceLang,
+    subtitle_language_name: subtitleLanguageName,
     video_title: videoTitle,
     video_url: videoUrl,
     context_lines: contextLines.map((line) => ({
       text: String(line.text || '').trim(),
       timestamp: Number(line.timestamp || 0),
+      translated_text: String(line.translated_text || '').trim(),
     })),
     requirements: [
       'Return valid JSON only.',
-      'Write the question, options, and explanation in the learner native language when possible.',
+      `Write the question, all 4 options, and the explanation in ${subtitleLanguageName}.`,
+      'Keep the entire quiz in the subtitle/source language, not the learner translation language.',
+      'Each context line may include translated_text in the learner translation language.',
+      `Set quoted_term to the learner translation-language word or short phrase you want the question to quote, using translated_text when available.`,
+      `The question field should ask about quoted_term in ${subtitleLanguageName} and should not quote the original subtitle token instead.`,
+      `When the question quotes or highlights the meaning being tested, quote a word or phrase from translated_text in ${nativeLanguageName}, not the original ${subtitleLanguageName} subtitle token.`,
+      `Use translated_text to anchor the tested meaning whenever it is available.`,
+      'Options must be entirely in the subtitle/source language only.',
+      'Do not include parentheses, inline translations, glosses, or bilingual answer options.',
+      'Do not include English words in parentheses inside options unless English is the subtitle/source language itself.',
       'Use exactly 4 options.',
       'Set correct_index to a zero-based index.',
       'Set target_word to one important source-language word or short phrase from the subtitle context.',
@@ -361,7 +379,7 @@ async function handleQuizGeneration(payload) {
     return { error: result.error };
   }
 
-  const quiz = sanitizeQuiz(result.data);
+  const quiz = sanitizeQuiz(result.data, sourceLang);
   if (!quiz) {
     return { error: 'Gemini returned an invalid quiz payload' };
   }
@@ -387,6 +405,9 @@ async function handleWordLookup(payload) {
     return { error: 'Missing word or sentence context' };
   }
 
+  const nativeLanguageName = describeLanguage(nativeLang);
+  const sourceLanguageName = describeLanguage(sourceLang);
+  const translationLanguageName = describeLanguage(translationLang);
   const userContent = JSON.stringify({
     task: 'Create a translation-dictionary lookup for the clicked subtitle token.',
     clicked_word: cleanWord,
@@ -394,16 +415,20 @@ async function handleWordLookup(payload) {
     clicked_sentence: cleanSentence,
     paired_subtitle: String(sentenceTranslation || '').trim(),
     clicked_word_language: sourceLang,
+    clicked_word_language_name: sourceLanguageName,
     learner_native_language: nativeLang,
+    learner_native_language_name: nativeLanguageName,
     translation_target_language: translationLang,
+    translation_target_language_name: translationLanguageName,
     video_title: videoTitle,
     requirements: [
       'Return valid JSON only.',
       'Preserve the clicked word in the word field.',
       'Set language to the language of the aligned dictionary headword.',
-      'translations must contain 2-4 concise translation equivalents in the translation_target_language.',
-      'definition must read like a compact translation-dictionary gloss.',
-      'usage_note should be short and may be empty if no note is needed.',
+      `translations must contain 2-4 concise translation equivalents written in ${translationLanguageName}.`,
+      `definition must read like a compact translation-dictionary gloss written in ${translationLanguageName}.`,
+      `usage_note should be short, may be empty, and if present must be written in ${translationLanguageName}.`,
+      `Do not use English unless ${translationLanguageName} is English.`,
       'If the clicked item is a short phrase, part_of_speech may be "phrase".'
     ],
   });
@@ -451,6 +476,9 @@ async function handleWordGloss(payload) {
     return { error: 'Missing word or sentence context' };
   }
 
+  const nativeLanguageName = describeLanguage(nativeLang);
+  const sourceLanguageName = describeLanguage(sourceLang);
+  const translationLanguageName = describeLanguage(translationLang);
   const userContent = JSON.stringify({
     task: 'Create hover gloss translations for the clicked subtitle token.',
     clicked_word: cleanWord,
@@ -458,11 +486,15 @@ async function handleWordGloss(payload) {
     clicked_sentence: cleanSentence,
     paired_subtitle: String(sentenceTranslation || '').trim(),
     clicked_word_language: sourceLang,
+    clicked_word_language_name: sourceLanguageName,
     learner_native_language: nativeLang,
+    learner_native_language_name: nativeLanguageName,
     translation_target_language: translationLang,
+    translation_target_language_name: translationLanguageName,
     requirements: [
       'Return valid JSON only.',
-      'translations must contain 2-4 short translation equivalents in the translation_target_language.',
+      `translations must contain 2-4 short translation equivalents written in ${translationLanguageName}.`,
+      `Do not use English unless ${translationLanguageName} is English.`,
       'Do not include explanations or full sentences.',
     ],
   });
@@ -504,19 +536,26 @@ async function handleWordGlossPrefetch(payload) {
     return { error: 'Missing sentence context' };
   }
 
+  const nativeLanguageName = describeLanguage(nativeLang);
+  const sourceLanguageName = describeLanguage(sourceLang);
+  const translationLanguageName = describeLanguage(translationLang);
   const userContent = JSON.stringify({
     task: 'Create prefetched hover gloss translations for every meaningful token in the subtitle line.',
     clicked_row: clickedRow,
     clicked_sentence: cleanSentence,
     paired_subtitle: String(sentenceTranslation || '').trim(),
     clicked_sentence_language: sourceLang,
+    clicked_sentence_language_name: sourceLanguageName,
     learner_native_language: nativeLang,
+    learner_native_language_name: nativeLanguageName,
     translation_target_language: translationLang,
+    translation_target_language_name: translationLanguageName,
     requirements: [
       'Return valid JSON only.',
       'glosses must include the exact token text from clicked_sentence in token.',
-      'Each gloss entry must contain 2-4 short translation equivalents in the translation_target_language.',
-      'Each gloss entry must include lemma, language, part_of_speech, gender, definition, usage_note, and example_sentence.',
+      `Each gloss entry must contain 2-4 short translation equivalents written in ${translationLanguageName}.`,
+      `Each gloss entry must include lemma, language, part_of_speech, gender, definition, usage_note, and example_sentence. Definitions and usage notes must be written in ${translationLanguageName}.`,
+      `Do not use English unless ${translationLanguageName} is English.`,
       'Do not include punctuation-only tokens.',
     ],
   });
@@ -619,20 +658,21 @@ async function handleTTS(payload) {
   }
 }
 
-function sanitizeQuiz(data) {
+function sanitizeQuiz(data, sourceLang = 'auto') {
   if (!data || typeof data !== 'object') {
     return null;
   }
 
   const question = String(data.question || '').trim();
+  const quotedTerm = sanitizeQuotedTerm(data.quoted_term);
   const explanation = String(data.explanation || '').trim();
   const targetWord = String(data.target_word || '').trim();
   const options = Array.isArray(data.options)
-    ? data.options.map((option) => String(option || '').trim()).filter(Boolean).slice(0, 4)
+    ? data.options.map((option) => sanitizeQuizOption(option)).filter(Boolean).slice(0, 4)
     : [];
   const correctIndex = Number(data.correct_index);
 
-  if (!question || !explanation || !targetWord || options.length !== 4) {
+  if (!question || !quotedTerm || !explanation || !targetWord || options.length !== 4) {
     return null;
   }
 
@@ -640,11 +680,15 @@ function sanitizeQuiz(data) {
     return null;
   }
 
+  const rebuiltQuestion = buildQuizQuestion(question, quotedTerm, sourceLang);
+  const cleanedExplanation = buildQuizExplanation(sourceLang, quotedTerm, options[correctIndex]);
+
   return {
-    question,
+    question: rebuiltQuestion,
+    quoted_term: quotedTerm,
     options,
     correct_index: correctIndex,
-    explanation,
+    explanation: cleanedExplanation,
     target_word: targetWord,
   };
 }
@@ -687,6 +731,160 @@ function sanitizeTranslations(value) {
     : [];
 }
 
+function sanitizeQuizOption(option) {
+  return stripInlineGloss(String(option || '').trim());
+}
+
+function sanitizeQuotedTerm(value) {
+  let text = stripInlineGloss(String(value || '').trim())
+    .replace(/^["“«]\s*/, '')
+    .replace(/\s*["”»]$/, '')
+    .trim();
+
+  if (!text) {
+    return '';
+  }
+
+  const words = text.split(/\s+/);
+  if (words.length >= 4 && words.length % 2 === 0) {
+    const midpoint = words.length / 2;
+    const firstHalf = words.slice(0, midpoint).join(' ');
+    const secondHalf = words.slice(midpoint).join(' ');
+    if (firstHalf.toLowerCase() === secondHalf.toLowerCase()) {
+      text = firstHalf;
+    }
+  }
+
+  if (text.length >= 8 && text.length % 2 === 0) {
+    const midpoint = text.length / 2;
+    const firstHalf = text.slice(0, midpoint).trim();
+    const secondHalf = text.slice(midpoint).trim();
+    if (firstHalf && firstHalf.toLowerCase() === secondHalf.toLowerCase()) {
+      text = firstHalf;
+    }
+  }
+
+  return text.trim();
+}
+
+function stripInlineGloss(text) {
+  return String(text || '')
+    .replace(/\s*\([^)]*\)/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([?!:;,.])/g, '$1')
+    .trim();
+}
+
+function buildQuizQuestion(question, quotedTerm, sourceLang = 'auto') {
+  const cleanQuotedTerm = String(quotedTerm || '').trim();
+  let rebuiltQuestion = stripInlineGloss(question);
+
+  if (!cleanQuotedTerm) {
+    return rebuiltQuestion;
+  }
+
+  const templatedQuestion = getQuizQuestionTemplate(sourceLang, cleanQuotedTerm);
+  if (templatedQuestion) {
+    return templatedQuestion;
+  }
+
+  rebuiltQuestion = rebuiltQuestion
+    .replace(QUOTED_PHRASE_PATTERN, ' ')
+    .replace(SINGLE_QUOTED_PHRASE_PATTERN, ' ')
+    .replace(new RegExp(escapeRegExp(cleanQuotedTerm), 'gi'), ' ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([?!:;,.])/g, '$1')
+    .trim();
+
+  rebuiltQuestion = rebuiltQuestion.replace(/\?+$/, '').trim();
+
+  return `${rebuiltQuestion || stripInlineGloss(question).replace(/\?+$/, '').trim()} "${cleanQuotedTerm}" ?`
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+\?/g, ' ?')
+    .trim();
+}
+
+function buildQuizExplanation(sourceLang, quotedTerm, correctOption, fallbackText = '') {
+  const cleanText = String(fallbackText || '').trim();
+  const cleanQuotedTerm = String(quotedTerm || '').trim();
+  const cleanCorrectOption = stripInlineGloss(String(correctOption || '').trim());
+
+  if (!cleanQuotedTerm || !cleanCorrectOption) {
+    return cleanText;
+  }
+
+  const baseExplanation = getQuizExplanationTemplate(sourceLang, cleanQuotedTerm, cleanCorrectOption);
+  if (baseExplanation) {
+    return baseExplanation;
+  }
+
+  return `"${cleanQuotedTerm}" means "${cleanCorrectOption}".`;
+}
+
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function getQuizQuestionTemplate(sourceLang, quotedTerm) {
+  const cleanQuotedTerm = String(quotedTerm || '').trim();
+  const language = normalizeLanguageCode(sourceLang);
+
+  if (!cleanQuotedTerm) {
+    return '';
+  }
+
+  switch (language) {
+    case 'fr':
+      return `Dans ce contexte, que signifie "${cleanQuotedTerm}" ?`;
+    case 'es':
+      return `En este contexto, ¿que significa "${cleanQuotedTerm}"?`;
+    case 'pt':
+      return `Neste contexto, o que significa "${cleanQuotedTerm}"?`;
+    case 'it':
+      return `In questo contesto, che cosa significa "${cleanQuotedTerm}"?`;
+    case 'de':
+      return `Was bedeutet "${cleanQuotedTerm}" in diesem Kontext?`;
+    case 'en':
+      return `In this context, what does "${cleanQuotedTerm}" mean?`;
+    default:
+      return '';
+  }
+}
+
+function getQuizExplanationTemplate(sourceLang, quotedTerm, correctOption) {
+  const cleanQuotedTerm = String(quotedTerm || '').trim();
+  const cleanCorrectOption = String(correctOption || '').trim();
+  const language = normalizeLanguageCode(sourceLang);
+
+  if (!cleanQuotedTerm || !cleanCorrectOption) {
+    return '';
+  }
+
+  switch (language) {
+    case 'fr':
+      return `"${cleanQuotedTerm}" signifie "${cleanCorrectOption}".`;
+    case 'es':
+      return `"${cleanQuotedTerm}" significa "${cleanCorrectOption}".`;
+    case 'pt':
+      return `"${cleanQuotedTerm}" significa "${cleanCorrectOption}".`;
+    case 'it':
+      return `"${cleanQuotedTerm}" significa "${cleanCorrectOption}".`;
+    case 'de':
+      return `"${cleanQuotedTerm}" bedeutet "${cleanCorrectOption}".`;
+    case 'en':
+      return `"${cleanQuotedTerm}" means "${cleanCorrectOption}".`;
+    default:
+      return `"${cleanQuotedTerm}" means "${cleanCorrectOption}".`;
+  }
+}
+
+function normalizeLanguageCode(code) {
+  return String(code || 'auto')
+    .toLowerCase()
+    .split('-')[0]
+    .trim();
+}
+
 function sanitizeGlossEntries(value) {
   if (!Array.isArray(value)) {
     return [];
@@ -719,6 +917,11 @@ function sanitizeGlossEntries(value) {
       };
     })
     .filter(Boolean);
+}
+
+function describeLanguage(code) {
+  const cleanCode = String(code || 'auto').trim() || 'auto';
+  return `${getLanguageName(cleanCode)} (${cleanCode})`;
 }
 
 function arrayBufferToBase64(buffer) {

@@ -30,10 +30,12 @@
       this._requestToken = 0;
       this._inFlightToken = null;
       this._hasLoggedMissingOverlay = false;
+      this._recentTranslations = new Map();
 
       this._onSubtitleLine = this._onSubtitleLine.bind(this);
       this._onStudyModeChange = this._onStudyModeChange.bind(this);
       this._onStorageChanged = this._onStorageChanged.bind(this);
+      this._onTranslationReady = this._onTranslationReady.bind(this);
     }
 
     async init() {
@@ -47,6 +49,7 @@
 
       document.addEventListener('subtitleLine', this._onSubtitleLine);
       document.addEventListener('lingualens:study-mode-change', this._onStudyModeChange);
+      document.addEventListener('lingualens:translation-ready', this._onTranslationReady);
       chrome.storage.onChanged.addListener(this._onStorageChanged);
 
       console.log('[LinguaLens] QuizEngine initialised');
@@ -124,6 +127,24 @@
       }
     }
 
+    _onTranslationReady(event) {
+      const originalText = String(event.detail?.originalText || '').trim();
+      const translatedText = String(event.detail?.translatedText || '').trim();
+
+      if (!originalText || !translatedText || translatedText === '...' || translatedText.startsWith('⚠')) {
+        return;
+      }
+
+      this._recentTranslations.set(originalText, translatedText);
+
+      if (this._recentTranslations.size > 25) {
+        const oldestKey = this._recentTranslations.keys().next().value;
+        if (oldestKey) {
+          this._recentTranslations.delete(oldestKey);
+        }
+      }
+    }
+
     _onSubtitleLine() {
       if (!this._isQuizModeEnabled()) {
         return;
@@ -155,8 +176,17 @@
         return null;
       }
 
+      const pairedContextLines = contextLines.map((line) => {
+        const text = String(line.text || '').trim();
+        return {
+          text,
+          timestamp: Number(line.timestamp || 0),
+          translated_text: this._recentTranslations.get(text) || '',
+        };
+      });
+
       return {
-        contextLines,
+        contextLines: pairedContextLines,
         difficulty: this._difficulty,
         nativeLang: this._nativeLang,
         sourceLang: this._sourceLang,
@@ -340,10 +370,12 @@
     destroy() {
       document.removeEventListener('subtitleLine', this._onSubtitleLine);
       document.removeEventListener('lingualens:study-mode-change', this._onStudyModeChange);
+      document.removeEventListener('lingualens:translation-ready', this._onTranslationReady);
       chrome.storage.onChanged.removeListener(this._onStorageChanged);
       this._overlay?.hideQuiz?.();
       this._clearPrefetchState();
       this._activeQuiz = null;
+      this._recentTranslations.clear();
       this._overlay = null;
       this._video = null;
     }

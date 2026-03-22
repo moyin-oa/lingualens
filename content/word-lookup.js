@@ -141,7 +141,8 @@
       const button = document.createElement('button');
       button.className = 'll-nav-btn ll-nav-btn--copy';
       button.type = 'button';
-      button.textContent = 'Copy';
+      button.innerHTML = `${getCopyIconSvg()}<span class="ll-nav-btn__label">Copy</span>`;
+      button.classList.add('ll-nav-btn--iconic');
       button.setAttribute('aria-label', 'Copy subtitle text');
       button.setAttribute('data-tooltip', 'Copy subtitle');
       button.hidden = !canCopy;
@@ -151,7 +152,12 @@
         this._handleSubtitleCopy();
       });
 
-      this._navBar.appendChild(button);
+      const continueButton = this._navBar.querySelector('.ll-nav-btn--continue');
+      if (continueButton) {
+        this._navBar.insertBefore(button, continueButton);
+      } else {
+        this._navBar.appendChild(button);
+      }
       this._subtitleCopyBtn = button;
     }
 
@@ -1188,4 +1194,14 @@
 
   window.LinguaLens = window.LinguaLens || {};
   window.LinguaLens.WordLookup = WordLookup;
+
+  function getCopyIconSvg() {
+    return [
+      '<span class="ll-nav-btn__icon" aria-hidden="true">',
+      '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">',
+      '<path d="M16 1H6a2 2 0 0 0-2 2v12h2V3h10V1Zm3 4H10a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm0 16H10V7h9v14Z" fill="currentColor"></path>',
+      '</svg>',
+      '</span>',
+    ].join('');
+  }
 })();

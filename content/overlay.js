@@ -21,6 +21,10 @@
       this._nativeText = '';
       this._phoneticText = '';
       this._navBar = null;
+      this._settingsButton = null;
+      this._settingsPanel = null;
+      this._settingsCloseBtn = null;
+      this._settingsFrame = null;
       this._quizPanel = null;
       this._quizQuestion = null;
       this._quizOptions = null;
@@ -32,6 +36,7 @@
       this._quizHandlers = null;
       this._resizeObserver = null;
       this._onQuizKeyDown = this._onQuizKeyDown.bind(this);
+      this._onSettingsKeyDown = this._onSettingsKeyDown.bind(this);
     }
 
     /**
@@ -90,6 +95,52 @@
       this._navBar.className = 'll-nav-bar';
       this._navBar.setAttribute('role', 'toolbar');
       this._navBar.setAttribute('aria-label', 'Subtitle navigation');
+
+      this._settingsButton = document.createElement('button');
+      this._settingsButton.className = 'll-settings-launcher';
+      this._settingsButton.type = 'button';
+      this._settingsButton.textContent = 'Settings';
+      this._settingsButton.setAttribute('aria-label', 'Open LinguaLens settings');
+      this._settingsButton.setAttribute('aria-expanded', 'false');
+      this._settingsButton.addEventListener('click', () => {
+        this.toggleSettingsPanel();
+      });
+
+      this._settingsPanel = document.createElement('section');
+      this._settingsPanel.className = 'll-settings-panel';
+      this._settingsPanel.setAttribute('role', 'dialog');
+      this._settingsPanel.setAttribute('aria-label', 'LinguaLens settings');
+      this._settingsPanel.setAttribute('aria-hidden', 'true');
+      this._settingsPanel.hidden = true;
+      this._settingsPanel.tabIndex = -1;
+      this._settingsPanel.addEventListener('keydown', this._onSettingsKeyDown);
+
+      const settingsHeader = document.createElement('div');
+      settingsHeader.className = 'll-settings-panel__header';
+
+      const settingsTitle = document.createElement('div');
+      settingsTitle.className = 'll-settings-panel__title';
+      settingsTitle.textContent = 'LinguaLens Settings';
+
+      this._settingsCloseBtn = document.createElement('button');
+      this._settingsCloseBtn.className = 'll-settings-panel__close';
+      this._settingsCloseBtn.type = 'button';
+      this._settingsCloseBtn.textContent = 'Close';
+      this._settingsCloseBtn.setAttribute('aria-label', 'Close LinguaLens settings');
+      this._settingsCloseBtn.addEventListener('click', () => {
+        this.hideSettingsPanel();
+      });
+
+      this._settingsFrame = document.createElement('iframe');
+      this._settingsFrame.className = 'll-settings-panel__frame';
+      this._settingsFrame.setAttribute('title', 'LinguaLens settings');
+      this._settingsFrame.setAttribute('loading', 'lazy');
+      this._settingsFrame.src = chrome.runtime.getURL('popup/popup.html');
+
+      settingsHeader.appendChild(settingsTitle);
+      settingsHeader.appendChild(this._settingsCloseBtn);
+      this._settingsPanel.appendChild(settingsHeader);
+      this._settingsPanel.appendChild(this._settingsFrame);
 
       // Quiz panel
       this._quizPanel = document.createElement('section');
@@ -157,6 +208,7 @@
       subtitleArea.appendChild(this._nativeRow);
       subtitleArea.appendChild(this._phoneticRow);
       subtitleArea.appendChild(this._navBar);
+      this._container.appendChild(this._settingsPanel);
       this._container.appendChild(this._quizPanel);
       this._container.appendChild(subtitleArea);
 
@@ -182,6 +234,10 @@
       this._nativeRow = this._container.querySelector('.ll-subtitle-row--native');
       this._phoneticRow = this._container.querySelector('.ll-subtitle-row--phonetic');
       this._navBar = this._container.querySelector('.ll-nav-bar');
+      this._settingsButton = this._container.querySelector('.ll-settings-launcher');
+      this._settingsPanel = this._container.querySelector('.ll-settings-panel');
+      this._settingsCloseBtn = this._container.querySelector('.ll-settings-panel__close');
+      this._settingsFrame = this._container.querySelector('.ll-settings-panel__frame');
       this._quizPanel = this._container.querySelector('.ll-quiz-panel');
       this._quizQuestion = this._container.querySelector('.ll-quiz-question');
       this._quizOptions = this._container.querySelector('.ll-quiz-options');
@@ -190,7 +246,14 @@
       this._quizExplanation = this._container.querySelector('.ll-quiz-explanation');
       this._quizDismissBtn = this._container.querySelector('.ll-quiz-action--secondary');
       this._quizContinueBtn = this._container.querySelector('.ll-quiz-action--primary');
+      this._settingsButton?.addEventListener('click', () => {
+        this.toggleSettingsPanel();
+      });
+      this._settingsCloseBtn?.addEventListener('click', () => {
+        this.hideSettingsPanel();
+      });
       this._quizPanel?.addEventListener('keydown', this._onQuizKeyDown);
+      this._settingsPanel?.addEventListener('keydown', this._onSettingsKeyDown);
     }
 
     /**
@@ -340,11 +403,51 @@
       return this._navBar;
     }
 
+    getSettingsButton() {
+      return this._settingsButton;
+    }
+
     /**
      * Get the subtitle area container
      */
     getSubtitleArea() {
       return this._subtitleArea;
+    }
+
+    toggleSettingsPanel() {
+      if (this.isSettingsPanelVisible()) {
+        this.hideSettingsPanel();
+        return;
+      }
+
+      this.showSettingsPanel();
+    }
+
+    showSettingsPanel() {
+      if (!this._settingsPanel) {
+        return;
+      }
+
+      this._settingsPanel.hidden = false;
+      this._settingsPanel.setAttribute('aria-hidden', 'false');
+      this._settingsPanel.classList.add('ll-settings-panel--visible');
+      this._settingsButton?.setAttribute('aria-expanded', 'true');
+      setTimeout(() => this._settingsCloseBtn?.focus(), 0);
+    }
+
+    hideSettingsPanel() {
+      if (!this._settingsPanel) {
+        return;
+      }
+
+      this._settingsPanel.hidden = true;
+      this._settingsPanel.setAttribute('aria-hidden', 'true');
+      this._settingsPanel.classList.remove('ll-settings-panel--visible');
+      this._settingsButton?.setAttribute('aria-expanded', 'false');
+    }
+
+    isSettingsPanelVisible() {
+      return Boolean(this._settingsPanel?.classList.contains('ll-settings-panel--visible'));
     }
 
     /**
@@ -466,6 +569,13 @@
       }
     }
 
+    _onSettingsKeyDown(event) {
+      if (event.key === 'Escape' && this.isSettingsPanelVisible()) {
+        event.preventDefault();
+        this.hideSettingsPanel();
+      }
+    }
+
     /**
      * Clear all subtitle text
      */
@@ -548,6 +658,9 @@
       if (this._quizPanel) {
         this._quizPanel.removeEventListener('keydown', this._onQuizKeyDown);
       }
+      if (this._settingsPanel) {
+        this._settingsPanel.removeEventListener('keydown', this._onSettingsKeyDown);
+      }
       if (this._resizeObserver) {
         this._resizeObserver.disconnect();
         this._resizeObserver = null;
@@ -567,6 +680,10 @@
       this._quizDismissBtn = null;
       this._quizContinueBtn = null;
       this._quizHandlers = null;
+      this._settingsButton = null;
+      this._settingsPanel = null;
+      this._settingsCloseBtn = null;
+      this._settingsFrame = null;
     }
   }
 

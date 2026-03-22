@@ -9,6 +9,36 @@
   if (window.LinguaLens._initialised) return;
 
   const LL = window.LinguaLens;
+  const DEFAULT_SETTINGS = Object.freeze({
+    source_lang: 'auto',
+    native_lang: 'en',
+    dual_subtitle: true,
+    phonetic_overlay: false,
+    wpm_badge: false,
+    quiz_mode: 'multiple_choice',
+    difficulty: 'intermediate',
+    quiz_frequency: 10,
+    study_mode: 'normal',
+    copy_format: 'target',
+  });
+  const SETTINGS_KEYS = Object.keys(DEFAULT_SETTINGS);
+  const VALID_LANGUAGE_CODES = new Set([
+    'ar',
+    'zh',
+    'nl',
+    'en',
+    'fr',
+    'de',
+    'hi',
+    'it',
+    'ja',
+    'ko',
+    'pt',
+    'ru',
+    'es',
+    'tr',
+    'vi',
+  ]);
 
   // Module instances (populated on init)
   let subtitleEngine = null;
@@ -17,6 +47,8 @@
   let subtitleNav = null;
   let quizEngine = null;
   let wordLookup = null;
+  let activeSettings = { ...DEFAULT_SETTINGS };
+  let settingsListenersAttached = false;
 
   /**
    * Initialise LinguaLens on a YouTube video page.
@@ -43,7 +75,9 @@
           return;
         }
 
-        startModules();
+        startModules().catch((error) => {
+          console.error('[LinguaLens] Failed to start modules.', error);
+        });
       });
     });
   }
@@ -51,7 +85,7 @@
   /**
    * Start all modules
    */
-  function startModules() {
+  async function startModules() {
     console.log('[LinguaLens] Starting modules...');
 
     // 1. Overlay — inject container into player
@@ -81,15 +115,18 @@
     // 5. Quiz Engine — prefetch and render comprehension checks
     quizEngine = new LL.QuizEngine(subtitleEngine, overlay);
     const currentQuizEngine = quizEngine;
-    quizEngine.init().then((ready) => {
-      if (ready && subtitleNav && quizEngine === currentQuizEngine) {
-        currentQuizEngine.setStudyMode(subtitleNav.getStudyMode());
-      }
-    });
+    const quizReady = await quizEngine.init();
+    if (quizReady && subtitleNav && quizEngine === currentQuizEngine) {
+      currentQuizEngine.setStudyMode(subtitleNav.getStudyMode());
+    }
 
     // 6. Word Lookup — subtitle clicks, vocab save, TTS, copy
     wordLookup = new LL.WordLookup(subtitleEngine, overlay);
-    wordLookup.init();
+    await wordLookup.init();
+
+    await loadSettings();
+    applySettings(activeSettings, { force: true, refreshTranslation: false });
+    attachSettingsListeners();
 
     // 7. Listen for subtitle events and update overlay
     document.addEventListener('subtitleLine', onSubtitleLine);
@@ -121,8 +158,7 @@
       overlay.setOriginalText(text);
     }
 
-    // Translate and show in native row (YouTube already shows the original)
-    if (translationEngine) {
+    if (translationEngine && activeSettings.dual_subtitle) {
       translationEngine.translate(text);
     }
 
@@ -136,13 +172,9 @@
    * Hides the overlay.
    */
   function onSubtitleClear() {
-    overlay.clear();
-    if (translationEngine) {
-      translationEngine.clear();
-    }
-    if (wordLookup) {
-      wordLookup.handleSubtitleClear();
-    }
+    overlay?.clear();
+    translationEngine?.clear();
+    wordLookup?.handleSubtitleClear();
   }
 
   /**
@@ -151,6 +183,7 @@
   function cleanup() {
     document.removeEventListener('subtitleLine', onSubtitleLine);
     document.removeEventListener('subtitleClear', onSubtitleClear);
+    detachSettingsListeners();
 
     if (subtitleNav) {
       subtitleNav.destroy();
@@ -183,6 +216,198 @@
     console.log('[LinguaLens] Cleaned up.');
   }
 
+  async function loadSettings() {
+    try {
+      const stored = await chrome.storage.local.get(SETTINGS_KEYS);
+      activeSettings = normalizeSettings(stored);
+    } catch (error) {
+      console.warn('[LinguaLens] Failed to load settings, using defaults.', error);
+      activeSettings = { ...DEFAULT_SETTINGS };
+    }
+  }
+
+  function attachSettingsListeners() {
+    if (settingsListenersAttached) {
+      return;
+    }
+
+    chrome.storage.onChanged.addListener(onStorageChanged);
+    document.addEventListener('lingualens:study-mode-change', onStudyModeChanged);
+    settingsListenersAttached = true;
+  }
+
+  function detachSettingsListeners() {
+    if (!settingsListenersAttached) {
+      return;
+    }
+
+    chrome.storage.onChanged.removeListener(onStorageChanged);
+    document.removeEventListener('lingualens:study-mode-change', onStudyModeChanged);
+    settingsListenersAttached = false;
+  }
+
+  function onStorageChanged(changes, areaName) {
+    if (areaName !== 'local') {
+      return;
+    }
+
+    const nextSettings = { ...activeSettings };
+    let hasSettingChange = false;
+
+    Object.entries(changes).forEach(([key, change]) => {
+      if (!SETTINGS_KEYS.includes(key)) {
+        return;
+      }
+
+      nextSettings[key] = change.newValue;
+      hasSettingChange = true;
+    });
+
+    if (!hasSettingChange) {
+      return;
+    }
+
+    applySettings(nextSettings);
+  }
+
+  function onStudyModeChanged(event) {
+    const mode = normalizeStudyMode(event.detail?.mode);
+    if (activeSettings.study_mode === mode) {
+      return;
+    }
+
+    activeSettings = {
+      ...activeSettings,
+      study_mode: mode,
+    };
+
+    quizEngine?.setStudyMode(mode);
+
+    chrome.storage.local.set({ study_mode: mode }).catch((error) => {
+      console.warn('[LinguaLens] Failed to persist study mode.', error);
+    });
+  }
+
+  function applySettings(settings, { force = false, refreshTranslation = true } = {}) {
+    const previousSettings = activeSettings;
+    const normalized = normalizeSettings(settings);
+    activeSettings = normalized;
+
+    if (translationEngine) {
+      if (force || previousSettings.source_lang !== normalized.source_lang) {
+        translationEngine.setSourceLang(normalized.source_lang);
+      }
+      if (force || previousSettings.native_lang !== normalized.native_lang) {
+        translationEngine.setTargetLang(normalized.native_lang);
+      }
+      if (force || previousSettings.dual_subtitle !== normalized.dual_subtitle) {
+        translationEngine.setEnabled(normalized.dual_subtitle);
+      }
+    }
+
+    if (overlay) {
+      overlay.toggleNativeRow(normalized.dual_subtitle && Boolean(overlay.getNativeText()));
+      overlay.togglePhoneticRow(normalized.phonetic_overlay && Boolean(overlay.getPhoneticText()));
+
+      if (!normalized.phonetic_overlay) {
+        overlay.setPhoneticText('');
+      }
+    }
+
+    if (force || previousSettings.study_mode !== normalized.study_mode) {
+      subtitleNav?.setStudyMode(normalized.study_mode, { silent: true });
+    }
+
+    if (quizEngine) {
+      if (force || previousSettings.difficulty !== normalized.difficulty) {
+        quizEngine.setDifficulty(normalized.difficulty);
+      }
+      if (force || previousSettings.quiz_frequency !== normalized.quiz_frequency) {
+        quizEngine.setFrequency(normalized.quiz_frequency);
+      }
+      if (force || previousSettings.study_mode !== normalized.study_mode) {
+        quizEngine.setStudyMode(normalized.study_mode);
+      }
+    }
+
+    const shouldRefreshTranslation = refreshTranslation && (
+      previousSettings.source_lang !== normalized.source_lang
+      || previousSettings.native_lang !== normalized.native_lang
+      || previousSettings.dual_subtitle !== normalized.dual_subtitle
+    );
+
+    if (shouldRefreshTranslation && translationEngine) {
+      const currentText = overlay?.getOriginalText?.() || '';
+      if (normalized.dual_subtitle && currentText) {
+        translationEngine.translate(currentText);
+      } else {
+        translationEngine.clear();
+      }
+    }
+  }
+
+  function normalizeSettings(settings = {}) {
+    return {
+      source_lang: normalizeSourceLanguage(settings.source_lang),
+      native_lang: normalizeNativeLanguage(settings.native_lang),
+      dual_subtitle: settings.dual_subtitle === undefined
+        ? DEFAULT_SETTINGS.dual_subtitle
+        : Boolean(settings.dual_subtitle),
+      phonetic_overlay: settings.phonetic_overlay === undefined
+        ? DEFAULT_SETTINGS.phonetic_overlay
+        : Boolean(settings.phonetic_overlay),
+      wpm_badge: false,
+      quiz_mode: 'multiple_choice',
+      difficulty: normalizeDifficulty(settings.difficulty),
+      quiz_frequency: normalizeQuizFrequency(settings.quiz_frequency),
+      study_mode: normalizeStudyMode(settings.study_mode),
+      copy_format: normalizeCopyFormat(settings.copy_format),
+    };
+  }
+
+  function normalizeSourceLanguage(value) {
+    if (value === 'auto') {
+      return 'auto';
+    }
+
+    return VALID_LANGUAGE_CODES.has(value)
+      ? value
+      : DEFAULT_SETTINGS.source_lang;
+  }
+
+  function normalizeNativeLanguage(value) {
+    return VALID_LANGUAGE_CODES.has(value)
+      ? value
+      : DEFAULT_SETTINGS.native_lang;
+  }
+
+  function normalizeDifficulty(value) {
+    return ['beginner', 'intermediate', 'advanced'].includes(value)
+      ? value
+      : DEFAULT_SETTINGS.difficulty;
+  }
+
+  function normalizeQuizFrequency(value) {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed)) {
+      return DEFAULT_SETTINGS.quiz_frequency;
+    }
+
+    return Math.min(20, Math.max(5, parsed));
+  }
+
+  function normalizeStudyMode(value) {
+    return value === 'auto-pause'
+      ? value
+      : DEFAULT_SETTINGS.study_mode;
+  }
+
+  function normalizeCopyFormat(value) {
+    return ['target', 'native', 'both'].includes(value)
+      ? value
+      : DEFAULT_SETTINGS.copy_format;
+  }
+
   // --- Helpers ---
 
   /**
@@ -207,10 +432,10 @@
       }
 
       const observer = new MutationObserver(() => {
-        const el = document.querySelector(selector);
-        if (el) {
+        const element = document.querySelector(selector);
+        if (element) {
           observer.disconnect();
-          resolve(el);
+          resolve(element);
         }
       });
 
