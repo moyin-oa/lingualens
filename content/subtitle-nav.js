@@ -22,10 +22,14 @@
 
       // State
       this._isPausedByAutoPause = false;
+      this._hasSeenSubtitle = false;
+      this._suppressNextSpaceKeyUp = false;
 
       // Bound handlers for cleanup
       this._onSubtitleLine = this._onSubtitleLine.bind(this);
+      this._onSubtitleClear = this._onSubtitleClear.bind(this);
       this._onKeyDown = this._onKeyDown.bind(this);
+      this._onKeyUp = this._onKeyUp.bind(this);
       this._onVideoTimeChange = this._onVideoTimeChange.bind(this);
     }
 
@@ -52,9 +56,11 @@
 
       // Listen for subtitle events
       document.addEventListener('subtitleLine', this._onSubtitleLine);
+      document.addEventListener('subtitleClear', this._onSubtitleClear);
 
       // Keyboard shortcuts
-      document.addEventListener('keydown', this._onKeyDown);
+      document.addEventListener('keydown', this._onKeyDown, true);
+      document.addEventListener('keyup', this._onKeyUp, true);
       this._video.addEventListener('timeupdate', this._onVideoTimeChange);
       this._video.addEventListener('seeked', this._onVideoTimeChange);
 
@@ -68,6 +74,7 @@
     _createButtons() {
       // Clear any existing buttons
       this._navBar.innerHTML = '';
+      this._navBar.classList.add('ll-nav-bar--hidden');
 
       // Prev button
       this._prevBtn = this._createButton(
@@ -140,6 +147,9 @@
      * Handle new subtitle line events.
      */
     _onSubtitleLine() {
+      this._hasSeenSubtitle = true;
+      this._navBar?.classList.remove('ll-nav-bar--hidden');
+
       this._updateButtonStates();
 
       // Auto-pause: pause video on each new subtitle line
@@ -154,6 +164,14 @@
       }
     }
 
+    _onSubtitleClear() {
+      this._navBar?.classList.add('ll-nav-bar--hidden');
+    }
+
+    _isSpaceEvent(event) {
+      return event.key === ' ' || event.code === 'Space' || event.key === 'Spacebar';
+    }
+
     /**
      * Handle keyboard shortcuts.
      * Only fires when not typing in an input/textarea.
@@ -165,8 +183,11 @@
         return;
       }
 
-      if ((event.key === ' ' || event.code === 'Space') && this._isPausedByAutoPause) {
+      if (this._isSpaceEvent(event) && this._isPausedByAutoPause) {
         event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        this._suppressNextSpaceKeyUp = true;
         this._resume();
         return;
       }
@@ -192,6 +213,17 @@
           this._seekRepeat();
           break;
       }
+    }
+
+    _onKeyUp(event) {
+      if (!this._suppressNextSpaceKeyUp || !this._isSpaceEvent(event)) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      this._suppressNextSpaceKeyUp = false;
     }
 
     _onVideoTimeChange() {
@@ -318,7 +350,7 @@
       this._showContinueButton(false);
       setTimeout(() => {
         if (this._video && this._video.paused) {
-          this._video.play();
+          this._video.play().catch(() => {});
         }
       }, 0);
     }
@@ -388,6 +420,9 @@
       }
 
       this._updateAutoPauseButton();
+      document.dispatchEvent(new CustomEvent('lingualens:study-mode-change', {
+        detail: { mode: this._studyMode },
+      }));
     }
 
     /**
@@ -402,7 +437,9 @@
      */
     destroy() {
       document.removeEventListener('subtitleLine', this._onSubtitleLine);
-      document.removeEventListener('keydown', this._onKeyDown);
+      document.removeEventListener('subtitleClear', this._onSubtitleClear);
+      document.removeEventListener('keydown', this._onKeyDown, true);
+      document.removeEventListener('keyup', this._onKeyUp, true);
       if (this._video) {
         this._video.removeEventListener('timeupdate', this._onVideoTimeChange);
         this._video.removeEventListener('seeked', this._onVideoTimeChange);
@@ -421,6 +458,8 @@
       this._continueBtn = null;
       this._autoPauseBtn = null;
       this._isPausedByAutoPause = false;
+      this._hasSeenSubtitle = false;
+      this._suppressNextSpaceKeyUp = false;
     }
   }
 

@@ -11,13 +11,24 @@
 
   class Overlay {
     constructor() {
+      this._player = null;
       this._container = null;
       this._subtitleArea = null;
       this._originalRow = null;
       this._nativeRow = null;
       this._phoneticRow = null;
       this._navBar = null;
+      this._quizPanel = null;
+      this._quizQuestion = null;
+      this._quizOptions = null;
+      this._quizFeedback = null;
+      this._quizFeedbackTitle = null;
+      this._quizExplanation = null;
+      this._quizDismissBtn = null;
+      this._quizContinueBtn = null;
+      this._quizHandlers = null;
       this._resizeObserver = null;
+      this._onQuizKeyDown = this._onQuizKeyDown.bind(this);
     }
 
     /**
@@ -37,6 +48,7 @@
         console.warn('[LinguaLens] Player not found for overlay injection.');
         return false;
       }
+      this._player = player;
 
       // Create main overlay container
       this._container = document.createElement('div');
@@ -75,16 +87,79 @@
       this._navBar.setAttribute('role', 'toolbar');
       this._navBar.setAttribute('aria-label', 'Subtitle navigation');
 
+      // Quiz panel
+      this._quizPanel = document.createElement('section');
+      this._quizPanel.className = 'll-quiz-panel';
+      this._quizPanel.setAttribute('role', 'dialog');
+      this._quizPanel.setAttribute('aria-label', 'Comprehension quiz');
+      this._quizPanel.setAttribute('aria-hidden', 'true');
+      this._quizPanel.tabIndex = -1;
+      this._quizPanel.addEventListener('keydown', this._onQuizKeyDown);
+
+      const quizBadge = document.createElement('div');
+      quizBadge.className = 'll-quiz-badge';
+      quizBadge.textContent = 'Quick Check';
+
+      this._quizQuestion = document.createElement('div');
+      this._quizQuestion.className = 'll-quiz-question';
+
+      this._quizOptions = document.createElement('div');
+      this._quizOptions.className = 'll-quiz-options';
+
+      this._quizFeedback = document.createElement('div');
+      this._quizFeedback.className = 'll-quiz-feedback';
+      this._quizFeedback.hidden = true;
+
+      this._quizFeedbackTitle = document.createElement('div');
+      this._quizFeedbackTitle.className = 'll-quiz-feedback-title';
+
+      this._quizExplanation = document.createElement('div');
+      this._quizExplanation.className = 'll-quiz-explanation';
+
+      this._quizFeedback.appendChild(this._quizFeedbackTitle);
+      this._quizFeedback.appendChild(this._quizExplanation);
+
+      const quizActions = document.createElement('div');
+      quizActions.className = 'll-quiz-actions';
+
+      this._quizDismissBtn = document.createElement('button');
+      this._quizDismissBtn.className = 'll-quiz-action ll-quiz-action--secondary';
+      this._quizDismissBtn.textContent = 'Dismiss';
+      this._quizDismissBtn.setAttribute('aria-label', 'Dismiss quiz');
+      this._quizDismissBtn.addEventListener('click', () => {
+        this._quizHandlers?.onDismiss?.();
+      });
+
+      this._quizContinueBtn = document.createElement('button');
+      this._quizContinueBtn.className = 'll-quiz-action ll-quiz-action--primary';
+      this._quizContinueBtn.textContent = 'Continue video';
+      this._quizContinueBtn.setAttribute('aria-label', 'Continue video');
+      this._quizContinueBtn.hidden = true;
+      this._quizContinueBtn.addEventListener('click', () => {
+        this._quizHandlers?.onContinue?.();
+      });
+
+      quizActions.appendChild(this._quizDismissBtn);
+      quizActions.appendChild(this._quizContinueBtn);
+
+      this._quizPanel.appendChild(quizBadge);
+      this._quizPanel.appendChild(this._quizQuestion);
+      this._quizPanel.appendChild(this._quizOptions);
+      this._quizPanel.appendChild(this._quizFeedback);
+      this._quizPanel.appendChild(quizActions);
+
       // Assemble
       subtitleArea.appendChild(this._originalRow);
       subtitleArea.appendChild(this._nativeRow);
       subtitleArea.appendChild(this._phoneticRow);
       subtitleArea.appendChild(this._navBar);
+      this._container.appendChild(this._quizPanel);
       this._container.appendChild(subtitleArea);
 
       // Inject into player (positioned absolutely relative to player)
       player.style.position = 'relative';
       player.appendChild(this._container);
+      this._updateLayoutMetrics(player);
 
       // Reposition on player resize
       this._attachResizeObserver(player);
@@ -98,10 +173,20 @@
      */
     _bindElements() {
       this._subtitleArea = this._container.querySelector('.ll-subtitle-area');
+      this._player = document.querySelector(PLAYER_SELECTOR);
       this._originalRow = this._container.querySelector('.ll-subtitle-row--original');
       this._nativeRow = this._container.querySelector('.ll-subtitle-row--native');
       this._phoneticRow = this._container.querySelector('.ll-subtitle-row--phonetic');
       this._navBar = this._container.querySelector('.ll-nav-bar');
+      this._quizPanel = this._container.querySelector('.ll-quiz-panel');
+      this._quizQuestion = this._container.querySelector('.ll-quiz-question');
+      this._quizOptions = this._container.querySelector('.ll-quiz-options');
+      this._quizFeedback = this._container.querySelector('.ll-quiz-feedback');
+      this._quizFeedbackTitle = this._container.querySelector('.ll-quiz-feedback-title');
+      this._quizExplanation = this._container.querySelector('.ll-quiz-explanation');
+      this._quizDismissBtn = this._container.querySelector('.ll-quiz-action--secondary');
+      this._quizContinueBtn = this._container.querySelector('.ll-quiz-action--primary');
+      this._quizPanel?.addEventListener('keydown', this._onQuizKeyDown);
     }
 
     /**
@@ -116,9 +201,22 @@
         if (!this._container.parentElement) {
           player.appendChild(this._container);
         }
+        this._updateLayoutMetrics(player);
       });
 
       this._resizeObserver.observe(player);
+    }
+
+    _updateLayoutMetrics(player) {
+      if (!player || !this._container) {
+        return;
+      }
+
+      const width = player.clientWidth || window.innerWidth || 1280;
+      const height = player.clientHeight || window.innerHeight || 720;
+
+      this._container.style.setProperty('--ll-player-width', `${width}px`);
+      this._container.style.setProperty('--ll-player-height', `${height}px`);
     }
 
     // --- Public API for other modules ---
@@ -221,6 +319,125 @@
     }
 
     /**
+     * Render a quiz overlay and wire it to the provided callbacks.
+     */
+    showQuiz(quiz, handlers = {}) {
+      if (!this._quizPanel || !this._quizQuestion || !this._quizOptions) {
+        return;
+      }
+
+      this._quizHandlers = handlers;
+      this._quizQuestion.textContent = quiz.question || '';
+      this._quizOptions.innerHTML = '';
+      this._quizFeedback.hidden = true;
+      this._quizFeedback.classList.remove('ll-quiz-feedback--correct', 'll-quiz-feedback--incorrect');
+      this._quizFeedbackTitle.textContent = '';
+      this._quizExplanation.textContent = '';
+      this._quizContinueBtn.hidden = true;
+      this._quizDismissBtn.hidden = false;
+
+      (quiz.options || []).forEach((option, index) => {
+        const button = document.createElement('button');
+        button.className = 'll-quiz-option';
+        button.type = 'button';
+        button.textContent = option;
+        button.setAttribute('data-option-index', String(index));
+        button.setAttribute('aria-label', `Answer option ${index + 1}`);
+        button.addEventListener('click', () => {
+          this._quizHandlers?.onAnswer?.(index);
+        });
+        this._quizOptions.appendChild(button);
+      });
+
+      this._quizPanel.classList.add('ll-quiz-panel--visible');
+      this._quizPanel.setAttribute('aria-hidden', 'false');
+      this._container?.classList.add('ll-overlay--quiz-active');
+      this._player?.classList.add('ll-player--quiz-active');
+      this._quizPanel.scrollTop = 0;
+
+      const firstButton = this._quizOptions.querySelector('.ll-quiz-option');
+      if (firstButton) {
+        setTimeout(() => firstButton.focus(), 0);
+      } else {
+        setTimeout(() => this._quizPanel.focus(), 0);
+      }
+    }
+
+    /**
+     * Update quiz option states and feedback after an answer is selected.
+     */
+    showQuizFeedback({ selectedIndex, correctIndex, explanation, correct }) {
+      if (!this._quizOptions || !this._quizFeedback) {
+        return;
+      }
+
+      const optionButtons = this._quizOptions.querySelectorAll('.ll-quiz-option');
+      optionButtons.forEach((button) => {
+        const optionIndex = Number(button.getAttribute('data-option-index'));
+        button.disabled = true;
+        button.classList.remove(
+          'll-quiz-option--selected',
+          'll-quiz-option--correct',
+          'll-quiz-option--incorrect'
+        );
+
+        if (optionIndex === selectedIndex) {
+          button.classList.add('ll-quiz-option--selected');
+        }
+        if (optionIndex === correctIndex) {
+          button.classList.add('ll-quiz-option--correct');
+        } else if (optionIndex === selectedIndex && selectedIndex !== correctIndex) {
+          button.classList.add('ll-quiz-option--incorrect');
+        }
+      });
+
+      this._quizFeedback.hidden = false;
+      this._quizFeedback.classList.toggle('ll-quiz-feedback--correct', Boolean(correct));
+      this._quizFeedback.classList.toggle('ll-quiz-feedback--incorrect', !correct);
+      this._quizFeedbackTitle.textContent = correct ? 'Correct' : 'Not quite';
+      this._quizExplanation.textContent = explanation || '';
+      this._quizContinueBtn.hidden = false;
+      this._quizContinueBtn.focus();
+    }
+
+    /**
+     * Hide the quiz overlay and clear quiz-specific DOM state.
+     */
+    hideQuiz() {
+      if (!this._quizPanel || !this._quizOptions) {
+        return;
+      }
+
+      this._quizPanel.classList.remove('ll-quiz-panel--visible');
+      this._quizPanel.setAttribute('aria-hidden', 'true');
+      this._container?.classList.remove('ll-overlay--quiz-active');
+      this._player?.classList.remove('ll-player--quiz-active');
+      this._quizQuestion.textContent = '';
+      this._quizOptions.innerHTML = '';
+      this._quizFeedback.hidden = true;
+      this._quizFeedback.classList.remove('ll-quiz-feedback--correct', 'll-quiz-feedback--incorrect');
+      this._quizFeedbackTitle.textContent = '';
+      this._quizExplanation.textContent = '';
+      this._quizContinueBtn.hidden = true;
+      this._quizDismissBtn.hidden = false;
+      this._quizHandlers = null;
+    }
+
+    /**
+     * Whether the quiz panel is currently visible.
+     */
+    isQuizVisible() {
+      return Boolean(this._quizPanel?.classList.contains('ll-quiz-panel--visible'));
+    }
+
+    _onQuizKeyDown(event) {
+      if (event.key === 'Escape' && this.isQuizVisible()) {
+        event.preventDefault();
+        this._quizHandlers?.onDismiss?.();
+      }
+    }
+
+    /**
      * Clear all subtitle text
      */
     clear() {
@@ -233,6 +450,9 @@
      * Remove the overlay from the DOM and disconnect observers
      */
     destroy() {
+      if (this._quizPanel) {
+        this._quizPanel.removeEventListener('keydown', this._onQuizKeyDown);
+      }
       if (this._resizeObserver) {
         this._resizeObserver.disconnect();
         this._resizeObserver = null;
@@ -241,6 +461,17 @@
         this._container.remove();
         this._container = null;
       }
+      this._player?.classList.remove('ll-player--quiz-active');
+      this._player = null;
+      this._quizPanel = null;
+      this._quizQuestion = null;
+      this._quizOptions = null;
+      this._quizFeedback = null;
+      this._quizFeedbackTitle = null;
+      this._quizExplanation = null;
+      this._quizDismissBtn = null;
+      this._quizContinueBtn = null;
+      this._quizHandlers = null;
     }
   }
 

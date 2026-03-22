@@ -6,7 +6,10 @@
 /* ─── Base Container ─────────────────────────────────────────────────── */
 
 .ll-overlay {
+  --ll-player-width: 1280px;
+  --ll-player-height: 720px;
   position: absolute;
+  top: auto;
   bottom: 18%;
   left: 0;
   right: 0;
@@ -15,8 +18,16 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 12px;
   font-family: 'YouTube Noto', Roboto, Arial, sans-serif;
   transition: bottom 0.2s ease;
+}
+
+#movie_player .ll-overlay--quiz-active {
+  top: 0;
+  bottom: 0 !important;
+  justify-content: center;
+  padding: clamp(12px, 1.6vw, 24px);
 }
 
 /* When controls are hidden (ytp-autohide), sit above YouTube captions */
@@ -41,15 +52,19 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5%;
-  max-width: 80%;
-  padding: 0.6% 1.2%;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.75);
+  gap: 4px;
+  max-width: 72%;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.68);
+}
+
+.ll-overlay--quiz-active .ll-subtitle-area {
+  display: none !important;
 }
 
 /* Hide the subtitle area when all rows are empty */
-.ll-subtitle-area:not(:has(.ll-subtitle-row--visible)):not(:has(.ll-nav-bar:not(:empty))) {
+.ll-subtitle-area:not(:has(.ll-subtitle-row--visible)):not(:has(.ll-nav-bar:not(.ll-nav-bar--hidden):not(:empty))) {
   display: none;
 }
 
@@ -57,10 +72,10 @@
 
 .ll-subtitle-row {
   text-align: center;
-  line-height: 1.4;
+  line-height: 1.25;
   word-wrap: break-word;
   max-width: 100%;
-  padding: 2px 4px;
+  padding: 1px 2px;
   border-radius: 3px;
   user-select: text;
   cursor: default;
@@ -69,23 +84,23 @@
 /* Original (target language) — bold white */
 .ll-subtitle-row--original {
   color: #ffffff;
-  font-size: clamp(14px, 1.8vw, 28px);
+  font-size: clamp(13px, 1.35vw, 22px);
   font-weight: 700;
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9);
 }
 
-/* Native translation — matches YouTube caption size */
+/* Native translation — intentionally smaller so it stays supportive */
 .ll-subtitle-row--native {
   color: #b0d4f1;
-  font-size: clamp(14px, 1.8vw, 28px);
-  font-weight: 700;
+  font-size: clamp(11px, 1.05vw, 18px);
+  font-weight: 600;
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9);
 }
 
 /* Phonetic / romanisation — italic, muted */
 .ll-subtitle-row--phonetic {
   color: #a0d8a0;
-  font-size: 14px;
+  font-size: clamp(10px, 0.9vw, 14px);
   font-weight: 400;
   font-style: italic;
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9);
@@ -105,9 +120,13 @@
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  margin-top: 4px;
+  gap: 6px;
+  margin-top: 2px;
   min-height: 0;
+}
+
+.ll-nav-bar--hidden {
+  display: none;
 }
 
 /* Hide nav bar when no buttons are visible */
@@ -122,14 +141,14 @@
   align-items: center;
   justify-content: center;
   min-width: 32px;
-  height: 28px;
-  padding: 2px 10px;
+  height: 24px;
+  padding: 2px 8px;
   border: none;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.15);
   color: #ffffff;
   font-family: inherit;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s ease, opacity 0.15s ease;
@@ -197,6 +216,199 @@
   background: rgba(76, 175, 80, 1);
 }
 
+/* ─── Quiz Panel ───────────────────────────────────────────────────── */
+
+.ll-quiz-panel {
+  display: none;
+  position: relative;
+  width: min(100%, clamp(320px, calc(var(--ll-player-width) * 0.64), 920px));
+  max-width: min(calc(var(--ll-player-width) - 24px), calc(100vw - 24px));
+  max-height: min(calc(var(--ll-player-height) - 24px), calc(100vh - 24px));
+  margin: 0 auto;
+  overflow-y: auto;
+  padding: clamp(14px, 1.8vw, 22px);
+  border-radius: 14px;
+  background: rgba(13, 18, 28, 0.95);
+  border: 1px solid rgba(176, 212, 241, 0.18);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  color: #ffffff;
+  overscroll-behavior: contain;
+}
+
+.ll-quiz-panel--visible {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(10px, 1.5vw, 16px);
+}
+
+.ll-quiz-badge {
+  align-self: flex-start;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(176, 212, 241, 0.2);
+  color: #b0d4f1;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.ll-quiz-question {
+  font-size: clamp(15px, calc(var(--ll-player-width) * 0.018), 24px);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.ll-quiz-options {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(8px, 1.2vw, 12px);
+}
+
+.ll-quiz-option {
+  width: 100%;
+  padding: clamp(10px, 1.2vw, 14px) clamp(12px, 1.4vw, 16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #ffffff;
+  font: inherit;
+  font-size: clamp(13px, calc(var(--ll-player-width) * 0.0125), 16px);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.ll-quiz-option:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(176, 212, 241, 0.45);
+  transform: translateY(-1px);
+}
+
+.ll-quiz-option:focus-visible {
+  outline: 2px solid #b0d4f1;
+  outline-offset: 2px;
+}
+
+.ll-quiz-option--selected {
+  border-color: rgba(176, 212, 241, 0.7);
+}
+
+.ll-quiz-option--correct {
+  background: rgba(76, 175, 80, 0.2);
+  border-color: rgba(76, 175, 80, 0.85);
+}
+
+.ll-quiz-option--incorrect {
+  background: rgba(244, 67, 54, 0.2);
+  border-color: rgba(244, 67, 54, 0.85);
+}
+
+.ll-quiz-feedback {
+  padding: clamp(10px, 1.3vw, 14px);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ll-quiz-feedback--correct {
+  border: 1px solid rgba(76, 175, 80, 0.55);
+}
+
+.ll-quiz-feedback--incorrect {
+  border: 1px solid rgba(244, 67, 54, 0.55);
+}
+
+.ll-quiz-feedback-title {
+  margin-bottom: 6px;
+  font-size: clamp(13px, calc(var(--ll-player-width) * 0.011), 15px);
+  font-weight: 700;
+}
+
+.ll-quiz-explanation {
+  font-size: clamp(13px, calc(var(--ll-player-width) * 0.0115), 15px);
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.ll-quiz-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ll-quiz-action {
+  padding: clamp(9px, 1vw, 11px) clamp(12px, 1.4vw, 16px);
+  border: none;
+  border-radius: 999px;
+  color: #ffffff;
+  font: inherit;
+  font-size: clamp(13px, calc(var(--ll-player-width) * 0.011), 15px);
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.ll-quiz-action:hover {
+  transform: translateY(-1px);
+}
+
+.ll-quiz-action:focus-visible {
+  outline: 2px solid #b0d4f1;
+  outline-offset: 2px;
+}
+
+.ll-quiz-action--primary {
+  background: rgba(76, 175, 80, 0.95);
+}
+
+.ll-quiz-action--secondary {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.ll-quiz-action[hidden] {
+  display: none;
+}
+
+#movie_player.ll-player--quiz-active .ytp-caption-window-container,
+#movie_player.ll-player--quiz-active .caption-window,
+#movie_player.ll-player--quiz-active .captions-text {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+@media (max-width: 900px) {
+  #movie_player .ll-overlay--quiz-active {
+    padding: 12px;
+  }
+
+  .ll-quiz-panel {
+    width: min(calc(100vw - 24px), calc(var(--ll-player-width) - 24px));
+    max-height: min(calc(var(--ll-player-height) - 24px), calc(100vh - 24px));
+    padding: 14px;
+  }
+}
+
+@media (max-width: 640px), (max-height: 560px) {
+  #movie_player .ll-overlay--quiz-active {
+    padding: 8px;
+  }
+
+  .ll-quiz-panel {
+    width: min(calc(100vw - 16px), calc(var(--ll-player-width) - 16px));
+    max-height: min(calc(var(--ll-player-height) - 16px), calc(100vh - 16px));
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .ll-quiz-badge {
+    font-size: 11px;
+  }
+
+  .ll-quiz-actions {
+    gap: 8px;
+  }
+}
+
 /* ─── Push YouTube's Native Captions Down (LinguaLens sits above) ────── */
 /* YouTube captions stay visible; our overlay is positioned above them */
 
@@ -205,7 +417,9 @@
 @media (prefers-reduced-motion: reduce) {
   .ll-overlay,
   .ll-subtitle-row,
-  .ll-nav-btn {
+  .ll-nav-btn,
+  .ll-quiz-option,
+  .ll-quiz-action {
     transition: none;
   }
 }

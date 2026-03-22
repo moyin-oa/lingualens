@@ -15,6 +15,7 @@
   let overlay = null;
   let translationEngine = null;
   let subtitleNav = null;
+  let quizEngine = null;
 
   /**
    * Initialise LinguaLens on a YouTube video page.
@@ -76,7 +77,16 @@
     subtitleNav = new LL.SubtitleNav(subtitleEngine, overlay);
     subtitleNav.init();
 
-    // 5. Listen for subtitle events and update overlay
+    // 5. Quiz Engine — prefetch and render comprehension checks
+    quizEngine = new LL.QuizEngine(subtitleEngine, overlay);
+    const currentQuizEngine = quizEngine;
+    quizEngine.init().then((ready) => {
+      if (ready && subtitleNav && quizEngine === currentQuizEngine) {
+        currentQuizEngine.setStudyMode(subtitleNav.getStudyMode());
+      }
+    });
+
+    // 6. Listen for subtitle events and update overlay
     document.addEventListener('subtitleLine', onSubtitleLine);
     document.addEventListener('subtitleClear', onSubtitleClear);
 
@@ -86,6 +96,7 @@
       overlay,
       translationEngine,
       subtitleNav,
+      quizEngine,
     };
     LL._initialised = true;
 
@@ -126,6 +137,10 @@
     if (subtitleNav) {
       subtitleNav.destroy();
       subtitleNav = null;
+    }
+    if (quizEngine) {
+      quizEngine.destroy();
+      quizEngine = null;
     }
     if (subtitleEngine) {
       subtitleEngine.destroy();
