@@ -2,7 +2,7 @@
 // Maps ISO 639-1 language codes to preferred ElevenLabs voice IDs
 // Used by background/worker.js for TTS calls
 
-// TODO: Update with actual voice IDs from ElevenLabs dashboard in Phase 5
+// Replace these placeholders with real voice IDs or set CONFIG.ELEVENLABS_VOICE_ID.
 
 export const VOICE_MAP = {
   ar: 'default-multilingual',

@@ -17,6 +17,9 @@
       this._originalRow = null;
       this._nativeRow = null;
       this._phoneticRow = null;
+      this._originalText = '';
+      this._nativeText = '';
+      this._phoneticText = '';
       this._navBar = null;
       this._quizPanel = null;
       this._quizQuestion = null;
@@ -68,6 +71,7 @@
       this._originalRow = document.createElement('div');
       this._originalRow.className = 'll-subtitle-row ll-subtitle-row--original';
       this._originalRow.setAttribute('aria-label', 'Original subtitle');
+      this._originalRow.setAttribute('aria-hidden', 'true');
 
       // Native translation row
       this._nativeRow = document.createElement('div');
@@ -214,9 +218,15 @@
 
       const width = player.clientWidth || window.innerWidth || 1280;
       const height = player.clientHeight || window.innerHeight || 720;
+      const subtitleAreaRect = this._subtitleArea?.getBoundingClientRect?.();
+      const playerRect = player.getBoundingClientRect?.();
+      const gapAboveSubtitle = subtitleAreaRect && playerRect
+        ? Math.max(72, subtitleAreaRect.top - playerRect.top - 12)
+        : Math.max(96, Math.floor(height * 0.26));
 
       this._container.style.setProperty('--ll-player-width', `${width}px`);
       this._container.style.setProperty('--ll-player-height', `${height}px`);
+      this._container.style.setProperty('--ll-popup-available-height', `${gapAboveSubtitle}px`);
     }
 
     // --- Public API for other modules ---
@@ -226,12 +236,10 @@
      */
     setOriginalText(text) {
       if (this._originalRow) {
-        this._originalRow.textContent = text;
-        if (text) {
-          this._originalRow.classList.add('ll-subtitle-row--visible');
-        } else {
-          this._originalRow.classList.remove('ll-subtitle-row--visible');
-        }
+        this._originalText = text || '';
+        this._originalRow.dataset.rawText = this._originalText;
+        this._originalRow.textContent = '';
+        this._originalRow.classList.remove('ll-subtitle-row--visible');
       }
     }
 
@@ -240,7 +248,8 @@
      */
     setNativeText(text) {
       if (this._nativeRow) {
-        this._nativeRow.textContent = text;
+        this._nativeText = text || '';
+        this._renderInteractiveText(this._nativeRow, this._nativeText);
         this._nativeRow.style.display = text ? '' : 'none';
         if (text) {
           this._nativeRow.classList.add('ll-subtitle-row--visible');
@@ -255,7 +264,8 @@
      */
     setPhoneticText(text) {
       if (this._phoneticRow) {
-        this._phoneticRow.textContent = text;
+        this._phoneticText = text || '';
+        this._renderInteractiveText(this._phoneticRow, this._phoneticText);
         this._phoneticRow.style.display = text ? '' : 'none';
         if (text) {
           this._phoneticRow.classList.add('ll-subtitle-row--visible');
@@ -302,6 +312,25 @@
      */
     getNativeRow() {
       return this._nativeRow;
+    }
+
+    /**
+     * Get the phonetic subtitle row element.
+     */
+    getPhoneticRow() {
+      return this._phoneticRow;
+    }
+
+    getOriginalText() {
+      return this._originalText;
+    }
+
+    getNativeText() {
+      return this._nativeText;
+    }
+
+    getPhoneticText() {
+      return this._phoneticText;
     }
 
     /**
@@ -441,9 +470,75 @@
      * Clear all subtitle text
      */
     clear() {
+      this._originalText = '';
+      this._nativeText = '';
+      this._phoneticText = '';
       this.setOriginalText('');
       this.setNativeText('');
       this.setPhoneticText('');
+    }
+
+    _renderInteractiveText(row, text) {
+      row.textContent = '';
+      row.dataset.rawText = text || '';
+
+      if (!text) {
+        return;
+      }
+
+      const fragments = this._segmentText(text);
+      fragments.forEach((fragment) => {
+        if (fragment.isWord) {
+          const token = document.createElement('span');
+          token.className = 'll-word-token';
+          token.textContent = fragment.text;
+          token.setAttribute('data-word', fragment.text);
+          row.appendChild(token);
+          return;
+        }
+
+        row.appendChild(document.createTextNode(fragment.text));
+      });
+    }
+
+    _segmentText(text) {
+      if (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function') {
+        const segmenter = new Intl.Segmenter(undefined, { granularity: 'word' });
+        return Array.from(segmenter.segment(text), (segment) => ({
+          text: segment.segment,
+          isWord: Boolean(segment.isWordLike),
+        }));
+      }
+
+      const fragments = [];
+      const wordPattern = /[\p{L}\p{N}\p{M}]+(?:['’-][\p{L}\p{N}\p{M}]+)*/gu;
+      let lastIndex = 0;
+
+      for (const match of text.matchAll(wordPattern)) {
+        const index = match.index ?? 0;
+        if (index > lastIndex) {
+          fragments.push({
+            text: text.slice(lastIndex, index),
+            isWord: false,
+          });
+        }
+
+        fragments.push({
+          text: match[0],
+          isWord: true,
+        });
+
+        lastIndex = index + match[0].length;
+      }
+
+      if (lastIndex < text.length) {
+        fragments.push({
+          text: text.slice(lastIndex),
+          isWord: false,
+        });
+      }
+
+      return fragments.length > 0 ? fragments : [{ text, isWord: false }];
     }
 
     /**

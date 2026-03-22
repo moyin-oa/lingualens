@@ -13,6 +13,7 @@ export const CONFIG = {
 
   // ElevenLabs TTS
   ELEVENLABS_API_KEY: 'your-elevenlabs-api-key',
+  ELEVENLABS_VOICE_ID: 'optional-default-voice-id',
   ELEVENLABS_MODEL: 'eleven_multilingual_v2',
   ELEVENLABS_ENDPOINT: 'https://api.elevenlabs.io/v1/text-to-speech',
 

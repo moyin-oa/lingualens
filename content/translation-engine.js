@@ -32,7 +32,9 @@
 
       // Cache hit — instant render
       if (this._cache.has(cacheKey)) {
-        this._overlay.setNativeText(this._cache.get(cacheKey));
+        const cachedTranslation = this._cache.get(cacheKey);
+        this._overlay.setNativeText(cachedTranslation);
+        this._emitTranslationReady(text, cachedTranslation);
         return;
       }
 
@@ -57,6 +59,7 @@
         // Cache and render
         this._cache.set(cacheKey, response.translation);
         this._overlay.setNativeText(response.translation);
+        this._emitTranslationReady(text, response.translation);
       } catch (err) {
         this._overlay.setNativeText('⚠ Translation unavailable');
       }
@@ -97,6 +100,17 @@
 
     clearCache() {
       this._cache.clear();
+    }
+
+    _emitTranslationReady(originalText, translatedText) {
+      document.dispatchEvent(new CustomEvent('lingualens:translation-ready', {
+        detail: {
+          originalText,
+          translatedText,
+          sourceLang: this._sourceLang,
+          targetLang: this._targetLang,
+        },
+      }));
     }
 
     destroy() {

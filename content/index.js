@@ -16,6 +16,7 @@
   let translationEngine = null;
   let subtitleNav = null;
   let quizEngine = null;
+  let wordLookup = null;
 
   /**
    * Initialise LinguaLens on a YouTube video page.
@@ -86,7 +87,11 @@
       }
     });
 
-    // 6. Listen for subtitle events and update overlay
+    // 6. Word Lookup — subtitle clicks, vocab save, TTS, copy
+    wordLookup = new LL.WordLookup(subtitleEngine, overlay);
+    wordLookup.init();
+
+    // 7. Listen for subtitle events and update overlay
     document.addEventListener('subtitleLine', onSubtitleLine);
     document.addEventListener('subtitleClear', onSubtitleClear);
 
@@ -97,6 +102,7 @@
       translationEngine,
       subtitleNav,
       quizEngine,
+      wordLookup,
     };
     LL._initialised = true;
 
@@ -108,11 +114,20 @@
    * Updates the overlay with the original text.
    */
   function onSubtitleLine(event) {
-    const { text } = event.detail;
+    const detail = event.detail || {};
+    const { text } = detail;
+
+    if (overlay) {
+      overlay.setOriginalText(text);
+    }
 
     // Translate and show in native row (YouTube already shows the original)
     if (translationEngine) {
       translationEngine.translate(text);
+    }
+
+    if (wordLookup) {
+      wordLookup.handleSubtitleLine(detail);
     }
   }
 
@@ -124,6 +139,9 @@
     overlay.clear();
     if (translationEngine) {
       translationEngine.clear();
+    }
+    if (wordLookup) {
+      wordLookup.handleSubtitleClear();
     }
   }
 
@@ -141,6 +159,10 @@
     if (quizEngine) {
       quizEngine.destroy();
       quizEngine = null;
+    }
+    if (wordLookup) {
+      wordLookup.destroy();
+      wordLookup = null;
     }
     if (subtitleEngine) {
       subtitleEngine.destroy();

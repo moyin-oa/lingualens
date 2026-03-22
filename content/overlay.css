@@ -8,6 +8,7 @@
 .ll-overlay {
   --ll-player-width: 1280px;
   --ll-player-height: 720px;
+  --ll-popup-available-height: 320px;
   position: absolute;
   top: auto;
   bottom: 18%;
@@ -83,10 +84,7 @@
 
 /* Original (target language) — bold white */
 .ll-subtitle-row--original {
-  color: #ffffff;
-  font-size: clamp(13px, 1.35vw, 22px);
-  font-weight: 700;
-  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9);
+  display: none !important;
 }
 
 /* Native translation — intentionally smaller so it stays supportive */
@@ -106,6 +104,38 @@
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9);
 }
 
+.ll-word-token {
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.ll-word-token:hover {
+  background: rgba(176, 212, 241, 0.22);
+  color: #ffffff;
+}
+
+.ll-word-gloss {
+  position: absolute;
+  z-index: 10001;
+  max-width: min(320px, calc(100vw - 32px));
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(11, 16, 25, 0.96);
+  border: 1px solid rgba(176, 212, 241, 0.3);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: normal;
+  transform: translate(-50%, -100%);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.ll-word-gloss--visible {
+  display: block;
+}
 
 /* ─── Error State ───────────────────────────────────────────────────── */
 
@@ -132,6 +162,36 @@
 /* Hide nav bar when no buttons are visible */
 .ll-nav-bar:empty {
   display: none;
+}
+
+.ll-nav-btn--copy {
+  min-width: 52px;
+}
+
+.ll-nav-btn--copy::after,
+.ll-word-popup__action::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.92);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.ll-nav-btn--copy:hover::after,
+.ll-nav-btn--copy:focus-visible::after,
+.ll-nav-btn--copy.ll-control--copied::after,
+.ll-word-popup__action.ll-control--copied::after {
+  opacity: 1;
 }
 
 /* ─── Nav Buttons ──────────────────────────────────────────────────── */
@@ -214,6 +274,169 @@
 
 .ll-nav-btn--continue:hover {
   background: rgba(76, 175, 80, 1);
+}
+
+/* ─── Word Lookup ──────────────────────────────────────────────────── */
+
+.ll-word-popup {
+  display: none;
+  position: absolute;
+  left: 50%;
+  top: auto;
+  bottom: calc(100% + 12px);
+  width: clamp(280px, calc(var(--ll-player-width) * 0.4), 520px);
+  max-width: min(calc(100vw - 24px), calc(var(--ll-player-width) - 24px));
+  max-height: min(calc(100vh - 24px), var(--ll-popup-available-height));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(11, 16, 25, 0.96);
+  border: 1px solid rgba(176, 212, 241, 0.24);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+  color: #ffffff;
+  transform: translateX(-50%);
+}
+
+.ll-word-popup--visible {
+  display: block;
+}
+
+.ll-word-popup__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.ll-word-popup__title-group {
+  min-width: 0;
+}
+
+.ll-word-popup__word {
+  font-size: clamp(18px, 1.5vw, 24px);
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.ll-word-popup__lemma {
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.ll-word-popup__close {
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.ll-word-popup__close:focus-visible {
+  outline: 2px solid #b0d4f1;
+  outline-offset: 2px;
+}
+
+.ll-word-popup__meta,
+.ll-word-popup__status {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.ll-word-popup__status {
+  min-height: 18px;
+  margin-top: 4px;
+}
+
+.ll-word-popup__section {
+  margin-top: 12px;
+}
+
+.ll-word-popup__label {
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #b0d4f1;
+}
+
+.ll-word-popup__definition,
+.ll-word-popup__example,
+.ll-word-popup__context {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.ll-word-popup__example {
+  color: rgba(255, 255, 255, 0.88);
+  font-style: italic;
+}
+
+.ll-word-popup__context {
+  color: rgba(255, 255, 255, 0.74);
+}
+
+.ll-word-popup__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.ll-word-popup__action {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 76px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+}
+
+.ll-word-popup__action:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.ll-word-popup__action:focus-visible {
+  outline: 2px solid #b0d4f1;
+  outline-offset: 2px;
+}
+
+.ll-word-popup__action:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+}
+
+.ll-word-popup__action--error {
+  background: rgba(244, 67, 54, 0.28);
+}
+
+.ll-word-popup__star {
+  min-width: 40px;
+  font-size: 16px;
+}
+
+.ll-word-popup__star--active {
+  background: rgba(255, 196, 0, 0.26);
+  color: #ffd24d;
 }
 
 /* ─── Quiz Panel ───────────────────────────────────────────────────── */
@@ -386,9 +609,15 @@
     max-height: min(calc(var(--ll-player-height) - 24px), calc(100vh - 24px));
     padding: 14px;
   }
+
+  .ll-word-popup {
+    bottom: calc(100% + 10px);
+    width: min(calc(100vw - 24px), calc(var(--ll-player-width) * 0.56), 460px);
+    max-height: min(calc(100vh - 24px), var(--ll-popup-available-height));
+  }
 }
 
-@media (max-width: 640px), (max-height: 560px) {
+@media (max-width: 640px), (max-height: 640px) {
   #movie_player .ll-overlay--quiz-active {
     padding: 8px;
   }
@@ -407,6 +636,36 @@
   .ll-quiz-actions {
     gap: 8px;
   }
+
+  .ll-word-popup {
+    bottom: calc(100% + 8px);
+    width: min(calc(100vw - 16px), calc(var(--ll-player-width) - 16px), 340px);
+    max-height: min(calc(100vh - 16px), var(--ll-popup-available-height));
+    padding: 12px;
+  }
+
+  .ll-word-popup__actions {
+    gap: 6px;
+  }
+}
+
+@media (max-height: 520px) {
+  .ll-word-popup {
+    bottom: calc(100% + 6px);
+    width: min(calc(100vw - 16px), calc(var(--ll-player-width) * 0.52), 320px);
+    max-height: min(calc(100vh - 12px), var(--ll-popup-available-height));
+    padding: 10px;
+    border-radius: 12px;
+  }
+
+  .ll-word-popup__section {
+    margin-top: 8px;
+  }
+
+  .ll-word-popup__actions {
+    margin-top: 10px;
+    gap: 6px;
+  }
 }
 
 /* ─── Push YouTube's Native Captions Down (LinguaLens sits above) ────── */
@@ -418,6 +677,8 @@
   .ll-overlay,
   .ll-subtitle-row,
   .ll-nav-btn,
+  .ll-word-token,
+  .ll-word-popup__action,
   .ll-quiz-option,
   .ll-quiz-action {
     transition: none;
