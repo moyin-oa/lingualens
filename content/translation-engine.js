@@ -1,9 +1,6 @@
 // Translation Engine
-// Dual subtitle and phonetic row rendering
-// Calls Gemini API via background worker
-// In-memory translation cache
-
-// TODO: Implement in Phase 2
+// Sends subtitle text to background worker for Google Translate API translation.
+// In-memory cache to avoid duplicate API calls.
 
 (function () {
   'use strict';
@@ -11,15 +8,100 @@
   class TranslationEngine {
     constructor() {
       this._cache = new Map();
+      this._overlay = null;
+      this._targetLang = 'en'; // default — will be configurable in Phase 6
+      this._sourceLang = 'auto';
+      this._enabled = true;
     }
 
-    async translate(text, sourceLang, nativeLang, phoneticEnabled) {
-      // TODO: Phase 2
-      return { translation: null, romanisation: null };
+    /**
+     * Initialise with a reference to the overlay for rendering results.
+     */
+    init(overlay) {
+      this._overlay = overlay;
+    }
+
+    /**
+     * Translate a subtitle line and update the overlay.
+     * Uses cache for instant repeat lookups.
+     */
+    async translate(text) {
+      if (!this._enabled || !text || !this._overlay) return;
+
+      const cacheKey = `${text}|${this._targetLang}`;
+
+      // Cache hit — instant render
+      if (this._cache.has(cacheKey)) {
+        this._overlay.setNativeText(this._cache.get(cacheKey));
+        return;
+      }
+
+      // Show loading indicator while waiting
+      this._overlay.setNativeText('...');
+
+      try {
+        const response = await chrome.runtime.sendMessage({
+          type: 'TRANSLATE',
+          payload: {
+            text,
+            sourceLang: this._sourceLang,
+            targetLang: this._targetLang,
+          },
+        });
+
+        if (response.error) {
+          this._overlay.setNativeText(`⚠ ${response.error}`);
+          return;
+        }
+
+        // Cache and render
+        this._cache.set(cacheKey, response.translation);
+        this._overlay.setNativeText(response.translation);
+      } catch (err) {
+        this._overlay.setNativeText('⚠ Translation unavailable');
+      }
+    }
+
+    /**
+     * Clear the translation display (e.g. when subtitles disappear).
+     */
+    clear() {
+      if (this._overlay) {
+        this._overlay.setNativeText('');
+      }
+    }
+
+    /**
+     * Update target language at runtime (Phase 6 settings).
+     */
+    setTargetLang(lang) {
+      this._targetLang = lang;
+      this._cache.clear(); // new language = new translations
+    }
+
+    /**
+     * Update source language at runtime.
+     */
+    setSourceLang(lang) {
+      this._sourceLang = lang;
+      this._cache.clear();
+    }
+
+    /**
+     * Enable or disable translation.
+     */
+    setEnabled(enabled) {
+      this._enabled = enabled;
+      if (!enabled) this.clear();
     }
 
     clearCache() {
       this._cache.clear();
+    }
+
+    destroy() {
+      this._cache.clear();
+      this._overlay = null;
     }
   }
 

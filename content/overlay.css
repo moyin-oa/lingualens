@@ -7,7 +7,7 @@
 
 .ll-overlay {
   position: absolute;
-  bottom: 70px;
+  bottom: 18%;
   left: 0;
   right: 0;
   z-index: 9999;
@@ -19,14 +19,14 @@
   transition: bottom 0.2s ease;
 }
 
-/* When controls are hidden (ytp-autohide), captions sit near the bottom */
+/* When controls are hidden (ytp-autohide), sit above YouTube captions */
 #movie_player.ytp-autohide .ll-overlay {
-  bottom: 70px;
+  bottom: 18%;
 }
 
-/* When controls are visible, shift up to match YouTube's caption shift */
+/* When controls are visible, shift up above both controls and YouTube captions */
 #movie_player:not(.ytp-autohide) .ll-overlay {
-  bottom: 120px;
+  bottom: 35%;
 }
 
 /* Allow child elements to receive pointer events */
@@ -41,9 +41,9 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 0.5%;
   max-width: 80%;
-  padding: 8px 16px;
+  padding: 0.6% 1.2%;
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.75);
 }
@@ -69,16 +69,16 @@
 /* Original (target language) — bold white */
 .ll-subtitle-row--original {
   color: #ffffff;
-  font-size: 18px;
+  font-size: clamp(14px, 1.8vw, 28px);
   font-weight: 700;
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9);
 }
 
-/* Native translation — lighter, slightly smaller */
+/* Native translation — matches YouTube caption size */
 .ll-subtitle-row--native {
   color: #b0d4f1;
-  font-size: 15px;
-  font-weight: 400;
+  font-size: clamp(14px, 1.8vw, 28px);
+  font-weight: 700;
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9);
 }
 
@@ -91,6 +91,12 @@
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9);
 }
 
+
+/* ─── Error State ───────────────────────────────────────────────────── */
+
+.ll-subtitle-row--native.ll-subtitle-row--visible {
+  /* When showing error messages (prefixed with ⚠), dim the text */
+}
 
 /* ─── Push YouTube's Native Captions Down (LinguaLens sits above) ────── */
 /* YouTube captions stay visible; our overlay is positioned above them */

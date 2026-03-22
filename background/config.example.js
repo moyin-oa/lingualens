@@ -4,8 +4,12 @@
 export const CONFIG = {
   // Google Gemini
   GEMINI_API_KEY: 'your-gemini-api-key',
-  GEMINI_MODEL: 'gemini-2.0-flash',
-  GEMINI_ENDPOINT: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+  GEMINI_MODEL: 'gemini-2.5-flash',
+  GEMINI_ENDPOINT: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+
+  // Google Cloud Translation API v2
+  GOOGLE_TRANSLATE_API_KEY: 'your-google-translate-api-key',
+  GOOGLE_TRANSLATE_ENDPOINT: 'https://translation.googleapis.com/language/translate/v2',
 
   // ElevenLabs TTS
   ELEVENLABS_API_KEY: 'your-elevenlabs-api-key',

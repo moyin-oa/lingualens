@@ -98,8 +98,6 @@
       }
 
       this._resizeObserver = new ResizeObserver(() => {
-        // Overlay is positioned via CSS relative to the player,
-        // so we just need to ensure the container is still in the DOM
         if (!this._container.parentElement) {
           player.appendChild(this._container);
         }

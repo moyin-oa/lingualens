@@ -13,6 +13,7 @@
   // Module instances (populated on init)
   let subtitleEngine = null;
   let overlay = null;
+  let translationEngine = null;
 
   /**
    * Initialise LinguaLens on a YouTube video page.
@@ -66,7 +67,11 @@
       return;
     }
 
-    // 3. Listen for subtitle events and update overlay
+    // 3. Translation Engine — wire up to overlay
+    translationEngine = new LL.TranslationEngine();
+    translationEngine.init(overlay);
+
+    // 4. Listen for subtitle events and update overlay
     document.addEventListener('subtitleLine', onSubtitleLine);
     document.addEventListener('subtitleClear', onSubtitleClear);
 
@@ -74,10 +79,11 @@
     LL._instances = {
       subtitleEngine,
       overlay,
+      translationEngine,
     };
     LL._initialised = true;
 
-    console.log('[LinguaLens] All Phase 1 modules running.');
+    console.log('[LinguaLens] All modules running.');
   }
 
   /**
@@ -87,8 +93,10 @@
   function onSubtitleLine(event) {
     const { text } = event.detail;
 
-    // Update original subtitle row
-    overlay.setOriginalText(text);
+    // Translate and show in native row (YouTube already shows the original)
+    if (translationEngine) {
+      translationEngine.translate(text);
+    }
   }
 
   /**
@@ -97,6 +105,9 @@
    */
   function onSubtitleClear() {
     overlay.clear();
+    if (translationEngine) {
+      translationEngine.clear();
+    }
   }
 
   /**
@@ -109,6 +120,10 @@
     if (subtitleEngine) {
       subtitleEngine.destroy();
       subtitleEngine = null;
+    }
+    if (translationEngine) {
+      translationEngine.destroy();
+      translationEngine = null;
     }
     if (overlay) {
       overlay.destroy();
