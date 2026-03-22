@@ -3,6 +3,7 @@
 // Content scripts communicate via chrome.runtime.sendMessage
 
 import { CONFIG } from './config.js';
+import { authManager } from './auth.js';
 import { getVoiceId } from '../data/elevenlabs-voices.js';
 import { getLanguageName } from '../data/languages.js';
 
@@ -196,6 +197,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case 'TTS_SPEAK':
       handleTTS(payload).then(sendResponse);
+      return true;
+
+    case 'AUTH_GET_SESSION':
+      handleAuthGetSession().then(sendResponse);
+      return true;
+
+    case 'AUTH_SIGN_IN':
+      authManager.signIn().then(sendResponse);
+      return true;
+
+    case 'AUTH_SIGN_UP':
+      authManager.signUp().then(sendResponse);
+      return true;
+
+    case 'AUTH_SIGN_OUT':
+      authManager.signOut().then(sendResponse);
+      return true;
+
+    case 'AUTH_REFRESH':
+      authManager.refreshToken().then(sendResponse);
       return true;
 
     default:
@@ -656,6 +677,10 @@ async function handleTTS(payload) {
     }
     return { error: err.message || 'TTS request failed' };
   }
+}
+
+async function handleAuthGetSession() {
+  return authManager.getSessionState();
 }
 
 function sanitizeQuiz(data, sourceLang = 'auto') {

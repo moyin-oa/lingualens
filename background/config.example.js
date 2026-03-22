@@ -18,9 +18,13 @@ export const CONFIG = {
   ELEVENLABS_ENDPOINT: 'https://api.elevenlabs.io/v1/text-to-speech',
 
   // Auth0
+  // Allow chrome.identity.getRedirectURL('auth0') as an Auth0 callback URL.
+  // Enable refresh token rotation so offline_access returns a refresh token.
   AUTH0_DOMAIN: 'your-tenant.auth0.com',
   AUTH0_CLIENT_ID: 'your-client-id',
-  AUTH0_CLIENT_SECRET: 'your-client-secret',
+  // Use your API identifier here if you want a JWT access token for Supabase / Phase 8.
+  AUTH0_AUDIENCE: 'your-api-audience',
+  AUTH0_SCOPE: '',
 
   // Supabase
   SUPABASE_URL: 'https://your-project.supabase.co',

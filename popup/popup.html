@@ -19,6 +19,57 @@
       </div>
     </header>
 
+    <section class="ll-card ll-card--muted">
+      <div class="ll-card__header">
+        <div>
+          <p class="ll-card__kicker">Account</p>
+          <h2>LinguaLens Account</h2>
+        </div>
+      </div>
+
+      <div id="auth-banner" class="ll-banner" role="status" aria-live="polite"></div>
+
+      <div id="guest-state" class="ll-auth-state">
+        <p class="ll-field__hint">
+          Sign in to get your LinguaLens account ready for cloud sync. We’ll open a secure browser window to continue.
+        </p>
+        <div class="ll-detail-list">
+          <div class="ll-detail-row">
+            <span>Session</span>
+            <span>Not signed in</span>
+          </div>
+          <div class="ll-detail-row">
+            <span>Sync</span>
+            <span>Saved on this device only.</span>
+          </div>
+        </div>
+        <div class="ll-auth-actions ll-auth-actions--stacked">
+          <button id="sign-in-button" type="button" class="ll-button">Sign In</button>
+          <button id="sign-up-button" type="button" class="ll-button ll-button--ghost">Create Account</button>
+        </div>
+      </div>
+
+      <div id="authenticated-state" class="ll-auth-state" hidden>
+        <div class="ll-session">
+          <p class="ll-session__label">Signed in as</p>
+          <p id="user-email" class="ll-session__value">user@example.com</p>
+        </div>
+        <div class="ll-detail-list">
+          <div class="ll-detail-row">
+            <span>Session</span>
+            <span id="account-status">Active</span>
+          </div>
+          <div class="ll-detail-row">
+            <span>Sync</span>
+            <span id="sync-status">Ready when Phase 8 is enabled</span>
+          </div>
+        </div>
+        <button id="sign-out-button" type="button" class="ll-button ll-button--danger">
+          Sign Out
+        </button>
+      </div>
+    </section>
+
     <form id="settings-form" class="ll-stack" novalidate>
       <section class="ll-card">
         <div class="ll-card__header">

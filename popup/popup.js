@@ -2,12 +2,17 @@ import { LANGUAGES } from '../data/languages.js';
 import {
   DEFAULT_SETTINGS,
   getSettings,
+  normalizeAuthNotice,
+  normalizeAuthSession,
   normalizeSettings,
   updateSettings,
 } from '../background/storage.js';
 
 const state = {
   settings: { ...DEFAULT_SETTINGS },
+  authSession: null,
+  authNotice: null,
+  authBusy: false,
   statusTimer: null,
 };
 
@@ -22,6 +27,15 @@ const controls = {
   copyFormat: document.getElementById('copy_format'),
   studyMode: document.getElementById('study_mode'),
   saveStatus: document.getElementById('save-status'),
+  authBanner: document.getElementById('auth-banner'),
+  guestState: document.getElementById('guest-state'),
+  authenticatedState: document.getElementById('authenticated-state'),
+  signInButton: document.getElementById('sign-in-button'),
+  signUpButton: document.getElementById('sign-up-button'),
+  signOutButton: document.getElementById('sign-out-button'),
+  userEmail: document.getElementById('user-email'),
+  accountStatus: document.getElementById('account-status'),
+  syncStatus: document.getElementById('sync-status'),
 };
 
 init().catch((error) => {
@@ -33,9 +47,22 @@ async function init() {
   populateLanguageOptions();
   bindEvents();
 
-  const settings = await getSettings();
+  const [settings, authState] = await Promise.all([
+    getSettings(),
+    requestAuthState(),
+  ]);
+
   state.settings = settings;
+  state.authSession = normalizeAuthSession(authState.session);
+  state.authNotice = authState.error
+    ? {
+      type: 'error',
+      message: authState.error,
+      updated_at: Date.now(),
+    }
+    : normalizeAuthNotice(authState.notice);
   applySettingsToForm(settings);
+  renderAuthState();
   setSaveStatus('Ready', 'idle');
 
   chrome.storage.onChanged.addListener(onStorageChanged);
@@ -67,6 +94,15 @@ function bindEvents() {
   controls.form.addEventListener('change', onFormChange);
   controls.quizFrequency.addEventListener('input', () => {
     updateQuizFrequencyLabel(controls.quizFrequency.value);
+  });
+  controls.signInButton.addEventListener('click', () => {
+    runAuthAction('AUTH_SIGN_IN', 'Opening secure sign-in...');
+  });
+  controls.signUpButton.addEventListener('click', () => {
+    runAuthAction('AUTH_SIGN_UP', 'Opening account creation...');
+  });
+  controls.signOutButton.addEventListener('click', () => {
+    runAuthAction('AUTH_SIGN_OUT', 'Signing out...');
   });
 }
 
@@ -132,6 +168,14 @@ function onStorageChanged(changes, areaName) {
 
   Object.entries(changes).forEach(([key, change]) => {
     if (!(key in DEFAULT_SETTINGS)) {
+      if (key === 'auth_session') {
+        state.authSession = normalizeAuthSession(change.newValue);
+      }
+
+      if (key === 'auth_notice') {
+        state.authNotice = normalizeAuthNotice(change.newValue);
+      }
+
       return;
     }
 
@@ -140,12 +184,14 @@ function onStorageChanged(changes, areaName) {
   });
 
   if (!hasSettingChange) {
+    renderAuthState();
     return;
   }
 
   state.settings = normalizeSettings(nextSettings);
   applySettingsToForm(state.settings);
   setSaveStatus('Updated', 'saved');
+  renderAuthState();
 }
 
 function setSaveStatus(message, stateName) {
@@ -159,4 +205,108 @@ function setSaveStatus(message, stateName) {
       controls.saveStatus.dataset.state = 'idle';
     }, 1400);
   }
+}
+
+async function requestAuthState() {
+  const response = await chrome.runtime.sendMessage({ type: 'AUTH_GET_SESSION' });
+  if (!response) {
+    throw new Error('Unable to load auth state');
+  }
+
+  return response;
+}
+
+async function runAuthAction(type, pendingMessage) {
+  setAuthBusy(true, pendingMessage);
+
+  try {
+    const response = await chrome.runtime.sendMessage({ type });
+    if (!response) {
+      throw new Error('No response from background service worker');
+    }
+
+    state.authSession = normalizeAuthSession(response.session);
+    state.authNotice = normalizeAuthNotice(response.notice);
+
+    if (response.error) {
+      state.authNotice = {
+        type: 'error',
+        message: response.error,
+        updated_at: Date.now(),
+      };
+    }
+  } catch (error) {
+    state.authNotice = {
+      type: 'error',
+      message: error.message || 'Auth request failed',
+      updated_at: Date.now(),
+    };
+  } finally {
+    setAuthBusy(false);
+    renderAuthState();
+  }
+}
+
+function renderAuthState() {
+  const session = state.authSession;
+  const notice = state.authNotice;
+  const isSignedIn = Boolean(session?.access_token);
+  const displayName = session?.user?.email || session?.user?.name || 'Authenticated user';
+
+  controls.guestState.toggleAttribute('hidden', isSignedIn);
+  controls.authenticatedState.toggleAttribute('hidden', !isSignedIn);
+
+  controls.userEmail.textContent = displayName;
+  controls.accountStatus.textContent = isSignedIn
+    ? `Active until ${formatExpiry(session.expires_at)}`
+    : 'Not signed in';
+  controls.syncStatus.textContent = isSignedIn
+    ? 'Cloud sync is coming soon.'
+    : 'Saved on this device only.';
+
+  const banner = isSignedIn
+    ? (notice?.type === 'error'
+      ? notice
+      : {
+        type: 'success',
+        message: 'You’re signed in. Your account is ready when cloud sync launches.',
+      })
+    : (notice || {
+      type: 'info',
+      message: 'You’re using LinguaLens in local mode. Saved words and quiz history stay on this device.',
+    });
+
+  controls.authBanner.textContent = banner.message;
+  controls.authBanner.dataset.state = banner.type;
+
+  controls.signInButton.disabled = state.authBusy;
+  controls.signUpButton.disabled = state.authBusy;
+  controls.signOutButton.disabled = state.authBusy;
+}
+
+function setAuthBusy(isBusy, message = '') {
+  state.authBusy = isBusy;
+
+  if (isBusy) {
+    controls.authBanner.textContent = message;
+    controls.authBanner.dataset.state = 'info';
+  }
+
+  controls.signInButton.disabled = isBusy;
+  controls.signUpButton.disabled = isBusy;
+  controls.signOutButton.disabled = isBusy;
+}
+
+function formatExpiry(expiresAt) {
+  const date = new Date(Number(expiresAt || 0));
+  if (Number.isNaN(date.getTime())) {
+    return 'soon';
+  }
+
+  return new Intl.DateTimeFormat([], {
+    hour: 'numeric',
+    minute: '2-digit',
+    month: 'short',
+    day: 'numeric',
+  }).format(date);
 }

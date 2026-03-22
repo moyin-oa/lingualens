@@ -51,6 +51,13 @@ export const DEFAULT_SETTINGS = Object.freeze({
 });
 
 export const SETTINGS_KEYS = Object.freeze(Object.keys(DEFAULT_SETTINGS));
+export const AUTH_SESSION_KEY = 'auth_session';
+export const AUTH_NOTICE_KEY = 'auth_notice';
+export const USER_DATA_KEYS = Object.freeze([
+  'vocab_list',
+  'quiz_history',
+  'sync_queue',
+]);
 
 /**
  * Get a value from chrome.storage.local
@@ -200,4 +207,123 @@ function normalizeBoolean(value, fallback) {
 
 function hasSettingsDiff(stored, normalized) {
   return SETTINGS_KEYS.some((key) => stored[key] !== normalized[key]);
+}
+
+export async function getAuthSession() {
+  const session = await storageGet(AUTH_SESSION_KEY, null);
+  return normalizeAuthSession(session);
+}
+
+export async function setAuthSession(session) {
+  const normalizedSession = normalizeAuthSession(session);
+  if (!normalizedSession) {
+    throw new Error('Invalid auth session');
+  }
+
+  await storageSet(AUTH_SESSION_KEY, normalizedSession);
+  return normalizedSession;
+}
+
+export async function clearAuthSession() {
+  await storageRemove(AUTH_SESSION_KEY);
+}
+
+export async function getAuthNotice() {
+  const notice = await storageGet(AUTH_NOTICE_KEY, null);
+  return normalizeAuthNotice(notice);
+}
+
+export async function setAuthNotice(notice) {
+  const normalizedNotice = normalizeAuthNotice(notice);
+  if (!normalizedNotice) {
+    await clearAuthNotice();
+    return null;
+  }
+
+  await storageSet(AUTH_NOTICE_KEY, normalizedNotice);
+  return normalizedNotice;
+}
+
+export async function clearAuthNotice() {
+  await storageRemove(AUTH_NOTICE_KEY);
+}
+
+export async function clearUserData() {
+  await storageRemove(USER_DATA_KEYS);
+}
+
+export function normalizeAuthSession(session) {
+  if (!session || typeof session !== 'object') {
+    return null;
+  }
+
+  const accessToken = String(session.access_token || '').trim();
+  const refreshToken = String(session.refresh_token || '').trim();
+  const idToken = String(session.id_token || '').trim();
+  const tokenType = String(session.token_type || 'Bearer').trim() || 'Bearer';
+  const scope = String(session.scope || '').trim();
+  const expiresAt = Number(session.expires_at);
+
+  if (!accessToken || !Number.isFinite(expiresAt) || expiresAt <= 0) {
+    return null;
+  }
+
+  const user = normalizeAuthUser(session.user);
+
+  return {
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    id_token: idToken,
+    token_type: tokenType,
+    scope,
+    expires_at: expiresAt,
+    user,
+  };
+}
+
+export function normalizeAuthNotice(notice) {
+  if (!notice || typeof notice !== 'object') {
+    return null;
+  }
+
+  const type = normalizeEnum(String(notice.type || '').trim().toLowerCase(), 'info', [
+    'info',
+    'success',
+    'warning',
+    'error',
+  ]);
+  const message = String(notice.message || '').trim();
+  const updatedAt = Number(notice.updated_at || Date.now());
+
+  if (!message) {
+    return null;
+  }
+
+  return {
+    type,
+    message,
+    updated_at: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
+  };
+}
+
+function normalizeAuthUser(user) {
+  if (!user || typeof user !== 'object') {
+    return null;
+  }
+
+  const sub = String(user.sub || '').trim();
+  const email = String(user.email || '').trim();
+  const name = String(user.name || '').trim();
+  const picture = String(user.picture || '').trim();
+
+  if (!sub && !email && !name) {
+    return null;
+  }
+
+  return {
+    sub,
+    email,
+    name,
+    picture,
+  };
 }

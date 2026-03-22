@@ -134,6 +134,32 @@ body.ll-popup {
   color: #a53030;
 }
 
+.ll-banner {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: var(--ll-radius-md);
+  border: 1px solid rgba(176, 212, 241, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ll-ink);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ll-banner[data-state="success"] {
+  border-color: rgba(158, 216, 180, 0.28);
+  color: var(--ll-success);
+}
+
+.ll-banner[data-state="warning"] {
+  border-color: rgba(255, 196, 112, 0.32);
+  color: #ffd289;
+}
+
+.ll-banner[data-state="error"] {
+  border-color: rgba(229, 98, 98, 0.32);
+  color: #ffb2b2;
+}
+
 .ll-card {
   padding: 16px;
   border: 1px solid var(--ll-line);
@@ -157,6 +183,68 @@ body.ll-popup {
 
 .ll-card__header h2 {
   margin-top: 2px;
+}
+
+.ll-auth-state {
+  display: grid;
+  gap: 14px;
+}
+
+.ll-auth-state[hidden] {
+  display: none !important;
+}
+
+.ll-auth-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.ll-auth-actions--stacked {
+  margin-top: 6px;
+}
+
+.ll-session {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border-radius: var(--ll-radius-md);
+  border: 1px solid rgba(176, 212, 241, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ll-session__label {
+  margin: 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ll-accent-deep);
+}
+
+.ll-session__value {
+  margin: 0;
+  font-family: var(--ll-font-display);
+  font-size: 18px;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.ll-detail-list {
+  display: grid;
+  gap: 10px;
+}
+
+.ll-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(176, 212, 241, 0.08);
+  font-size: 13px;
+}
+
+.ll-detail-row:last-child {
+  border-bottom: 0;
 }
 
 .ll-field {
@@ -210,6 +298,42 @@ body.ll-popup {
 .ll-field__control:disabled {
   cursor: not-allowed;
   opacity: 0.72;
+}
+
+.ll-button {
+  appearance: none;
+  border: 1px solid rgba(176, 212, 241, 0.22);
+  border-radius: 999px;
+  padding: 11px 16px;
+  background: linear-gradient(135deg, rgba(127, 184, 234, 0.92), rgba(176, 212, 241, 0.92));
+  color: #07111d;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 160ms ease, opacity 160ms ease, box-shadow 160ms ease;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+}
+
+.ll-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.ll-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.ll-button--ghost {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ll-ink);
+  box-shadow: none;
+}
+
+.ll-button--danger {
+  background: rgba(255, 255, 255, 0.04);
+  color: #ffb2b2;
+  box-shadow: none;
+  border-color: rgba(229, 98, 98, 0.28);
 }
 
 .ll-toggle {
@@ -324,6 +448,7 @@ body.ll-popup {
 
 @media (prefers-reduced-motion: reduce) {
   .ll-field__control,
+  .ll-button,
   .ll-toggle__track,
   .ll-toggle__track::after {
     transition: none;
