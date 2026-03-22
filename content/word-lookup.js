@@ -1028,6 +1028,7 @@
         }
 
         await chrome.storage.local.set({ vocab_list: vocabList });
+        await this._enqueueVocabSync(entry);
         selection.saved = true;
         selection.starred = starred;
         this._renderLookup();
@@ -1059,6 +1060,7 @@
         };
 
         await chrome.storage.local.set({ vocab_list: vocabList });
+        await this._enqueueVocabSync(vocabList[existingIndex]);
         selection.saved = true;
         selection.starred = Boolean(vocabList[existingIndex].starred);
         this._renderLookup();
@@ -1101,6 +1103,22 @@
         && Math.abs(Number(entry.timestamp || 0) - Number(selection.subtitleTimestamp || 0)) < 0.5
         && String(entry.language || '') === String(selection.rowLanguage || '')
       ));
+    }
+
+    async _enqueueVocabSync(entry) {
+      try {
+        await chrome.runtime.sendMessage({
+          type: 'SYNC_ENQUEUE',
+          payload: {
+            table: 'vocab_entries',
+            operation: 'upsert',
+            entityId: entry.id,
+            record: entry,
+          },
+        });
+      } catch (error) {
+        console.warn('[LinguaLens] Failed to queue vocab sync.', error);
+      }
     }
 
     async _syncSavedState() {

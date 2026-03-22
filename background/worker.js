@@ -4,6 +4,7 @@
 
 import { CONFIG } from './config.js';
 import { authManager } from './auth.js';
+import { syncManager } from './sync.js';
 import { getVoiceId } from '../data/elevenlabs-voices.js';
 import { getLanguageName } from '../data/languages.js';
 
@@ -217,6 +218,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case 'AUTH_REFRESH':
       authManager.refreshToken().then(sendResponse);
+      return true;
+
+    case 'SYNC_ENQUEUE':
+      syncManager.queueWrite(
+        payload?.table,
+        payload?.operation,
+        payload?.record,
+        {
+          entityId: payload?.entityId,
+        }
+      ).then(sendResponse).catch((error) => {
+        sendResponse({ error: error.message || 'Failed to queue sync item' });
+      });
+      return true;
+
+    case 'SYNC_FORCE':
+      syncManager.flush({ reason: 'manual_message' }).then(sendResponse).catch((error) => {
+        sendResponse({ error: error.message || 'Failed to run sync' });
+      });
+      return true;
+
+    case 'SYNC_GET_STATUS':
+      syncManager.getStatus().then(sendResponse).catch((error) => {
+        sendResponse({ error: error.message || 'Failed to load sync status' });
+      });
       return true;
 
     default:
@@ -980,5 +1006,9 @@ function resolveVoiceId(language) {
 if (CONFIG.GOOGLE_TRANSLATE_API_KEY) {
   handleTranslation({ text: 'hello', targetLang: 'es' }).catch(() => {});
 }
+
+syncManager.start().catch((error) => {
+  console.warn('[LinguaLens] Sync manager failed to start.', error);
+});
 
 console.log('[LinguaLens] Background worker initialised');

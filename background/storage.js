@@ -53,11 +53,23 @@ export const DEFAULT_SETTINGS = Object.freeze({
 export const SETTINGS_KEYS = Object.freeze(Object.keys(DEFAULT_SETTINGS));
 export const AUTH_SESSION_KEY = 'auth_session';
 export const AUTH_NOTICE_KEY = 'auth_notice';
+export const SYNC_QUEUE_KEY = 'sync_queue';
+export const SYNC_STATE_KEY = 'sync_state';
 export const USER_DATA_KEYS = Object.freeze([
   'vocab_list',
   'quiz_history',
   'sync_queue',
+  'sync_state',
 ]);
+export const DEFAULT_SYNC_STATE = Object.freeze({
+  status: 'local_only',
+  pending_count: 0,
+  last_synced_at: '',
+  last_error: '',
+  retry_after: 0,
+  current_user_sub: '',
+  hydrated_user_sub: '',
+});
 
 /**
  * Get a value from chrome.storage.local
@@ -250,6 +262,55 @@ export async function clearAuthNotice() {
 
 export async function clearUserData() {
   await storageRemove(USER_DATA_KEYS);
+}
+
+export async function getSyncQueue() {
+  const queue = await storageGet(SYNC_QUEUE_KEY, []);
+  return Array.isArray(queue) ? queue : [];
+}
+
+export async function setSyncQueue(queue) {
+  const normalizedQueue = Array.isArray(queue) ? queue : [];
+  await storageSet(SYNC_QUEUE_KEY, normalizedQueue);
+  return normalizedQueue;
+}
+
+export async function getSyncState() {
+  const state = await storageGet(SYNC_STATE_KEY, null);
+  return normalizeSyncState(state);
+}
+
+export async function setSyncState(state) {
+  const normalizedState = normalizeSyncState(state);
+  await storageSet(SYNC_STATE_KEY, normalizedState);
+  return normalizedState;
+}
+
+export function normalizeSyncState(state) {
+  if (!state || typeof state !== 'object') {
+    return { ...DEFAULT_SYNC_STATE };
+  }
+
+  const status = normalizeEnum(String(state.status || '').trim(), DEFAULT_SYNC_STATE.status, [
+    'local_only',
+    'syncing',
+    'synced',
+    'retrying',
+    'offline',
+    'error',
+  ]);
+  const pendingCount = Number.parseInt(state.pending_count, 10);
+  const retryAfter = Number.parseInt(state.retry_after, 10);
+
+  return {
+    status,
+    pending_count: Number.isFinite(pendingCount) ? Math.max(0, pendingCount) : 0,
+    last_synced_at: String(state.last_synced_at || '').trim(),
+    last_error: String(state.last_error || '').trim(),
+    retry_after: Number.isFinite(retryAfter) ? Math.max(0, retryAfter) : 0,
+    current_user_sub: String(state.current_user_sub || '').trim(),
+    hydrated_user_sub: String(state.hydrated_user_sub || '').trim(),
+  };
 }
 
 export function normalizeAuthSession(session) {

@@ -317,6 +317,7 @@
         const result = {
           id: `quiz_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
           question: this._activeQuiz.question,
+          quoted_term: this._activeQuiz.quoted_term,
           options: [...this._activeQuiz.options],
           correct_index: this._activeQuiz.correct_index,
           selected_index: this._activeQuiz.selectedIndex,
@@ -338,8 +339,25 @@
         const quizHistory = Array.isArray(stored.quiz_history) ? stored.quiz_history : [];
         quizHistory.push(result);
         await chrome.storage.local.set({ quiz_history: quizHistory });
+        await this._enqueueQuizSync(result);
       } catch (err) {
         console.warn('[LinguaLens] Failed to store quiz result.', err);
+      }
+    }
+
+    async _enqueueQuizSync(result) {
+      try {
+        await chrome.runtime.sendMessage({
+          type: 'SYNC_ENQUEUE',
+          payload: {
+            table: 'quiz_results',
+            operation: 'upsert',
+            entityId: result.id,
+            record: result,
+          },
+        });
+      } catch (error) {
+        console.warn('[LinguaLens] Failed to queue quiz sync.', error);
       }
     }
 

@@ -2,8 +2,10 @@ import { LANGUAGES } from '../data/languages.js';
 import {
   DEFAULT_SETTINGS,
   getSettings,
+  getSyncState,
   normalizeAuthNotice,
   normalizeAuthSession,
+  normalizeSyncState,
   normalizeSettings,
   updateSettings,
 } from '../background/storage.js';
@@ -12,6 +14,7 @@ const state = {
   settings: { ...DEFAULT_SETTINGS },
   authSession: null,
   authNotice: null,
+  syncState: null,
   authBusy: false,
   statusTimer: null,
 };
@@ -47,9 +50,10 @@ async function init() {
   populateLanguageOptions();
   bindEvents();
 
-  const [settings, authState] = await Promise.all([
+  const [settings, authState, syncState] = await Promise.all([
     getSettings(),
     requestAuthState(),
+    getSyncState(),
   ]);
 
   state.settings = settings;
@@ -61,6 +65,7 @@ async function init() {
       updated_at: Date.now(),
     }
     : normalizeAuthNotice(authState.notice);
+  state.syncState = normalizeSyncState(syncState);
   applySettingsToForm(settings);
   renderAuthState();
   setSaveStatus('Ready', 'idle');
@@ -176,6 +181,10 @@ function onStorageChanged(changes, areaName) {
         state.authNotice = normalizeAuthNotice(change.newValue);
       }
 
+      if (key === 'sync_state') {
+        state.syncState = normalizeSyncState(change.newValue);
+      }
+
       return;
     }
 
@@ -250,6 +259,7 @@ async function runAuthAction(type, pendingMessage) {
 function renderAuthState() {
   const session = state.authSession;
   const notice = state.authNotice;
+  const syncState = state.syncState || normalizeSyncState(null);
   const isSignedIn = Boolean(session?.access_token);
   const displayName = session?.user?.email || session?.user?.name || 'Authenticated user';
 
@@ -261,7 +271,7 @@ function renderAuthState() {
     ? `Active until ${formatExpiry(session.expires_at)}`
     : 'Not signed in';
   controls.syncStatus.textContent = isSignedIn
-    ? 'Cloud sync is coming soon.'
+    ? formatSyncStatus(syncState)
     : 'Saved on this device only.';
 
   const banner = isSignedIn
@@ -309,4 +319,53 @@ function formatExpiry(expiresAt) {
     month: 'short',
     day: 'numeric',
   }).format(date);
+}
+
+function formatSyncStatus(syncState) {
+  const pendingCount = Number(syncState?.pending_count || 0);
+
+  switch (syncState?.status) {
+    case 'syncing':
+      return pendingCount > 0 ? `Syncing ${pendingCount} item${pendingCount === 1 ? '' : 's'}...` : 'Syncing...';
+    case 'retrying':
+      return pendingCount > 0 ? `Retrying ${pendingCount} pending item${pendingCount === 1 ? '' : 's'} soon.` : 'Retrying soon.';
+    case 'offline':
+      return pendingCount > 0 ? `Offline. ${pendingCount} item${pendingCount === 1 ? '' : 's'} queued.` : 'Offline.';
+    case 'error':
+      return syncState.last_error || 'Sync needs attention.';
+    case 'synced':
+      return syncState.last_synced_at
+        ? `Synced ${formatRelative(syncState.last_synced_at)}`
+        : 'All changes synced.';
+    default:
+      return pendingCount > 0
+        ? `${pendingCount} item${pendingCount === 1 ? '' : 's'} waiting to sync.`
+        : 'Ready to sync.';
+  }
+}
+
+function formatRelative(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'recently';
+  }
+
+  const diffMs = Date.now() - date.getTime();
+  if (diffMs < 60_000) {
+    return 'just now';
+  }
+
+  const formatter = new Intl.RelativeTimeFormat([], { numeric: 'auto' });
+  const diffMinutes = Math.round(diffMs / 60_000);
+  if (diffMinutes < 60) {
+    return formatter.format(-diffMinutes, 'minute');
+  }
+
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) {
+    return formatter.format(-diffHours, 'hour');
+  }
+
+  const diffDays = Math.round(diffHours / 24);
+  return formatter.format(-diffDays, 'day');
 }
