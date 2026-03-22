@@ -159,13 +159,6 @@ If you skip this, LinguaLens still works in local-only mode.
 - Sync is queue-based: local writes are stored first, then flushed to Supabase when the user is authenticated.
 - The popup and the in-player settings panel share the same popup UI.
 
-## Current State / Limitations
-
-- The project currently has no automated test suite or build pipeline.
-- The extension is designed around YouTube's current DOM and caption behavior, so YouTube UI changes may require selector updates.
-- Core AI features depend on external APIs being configured and reachable.
-- Some legacy comments in the code still reference older project phases, but the implemented features listed above are present in the repo now.
-
 ## License
 
 This project is licensed under the terms in [`LICENSE`](./LICENSE).
